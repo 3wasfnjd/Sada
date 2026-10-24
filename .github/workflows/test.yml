@@ -1,0 +1,16 @@
+name: test
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: index.html matches src
+        run: node tools/build.mjs --check
+      - name: syntax check of the game module
+        run: cp src/game.js /tmp/game.mjs && node --check /tmp/game.mjs
+      - name: every generated room is solvable
+        run: node tests/generator.test.mjs
