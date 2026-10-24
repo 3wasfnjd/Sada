@@ -619,11 +619,20 @@ function audioInit() {
     conv.buffer = ir; const rg = ctx.createGain(); rg.gain.value = .32; conv.connect(rg); rg.connect(master);
     Object.assign(A, { ctx, master, rev: conv });
     setTimeout(() => decodeSamples(), 0);
-    // ambient pad
-    const pad = ctx.createGain(); pad.gain.value = .035; const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
-    pad.connect(lp); lp.connect(master); lp.connect(conv);
-    [73.42, 110, 146.83].forEach((f, i) => { const o = ctx.createOscillator(); o.type = i === 1 ? 'triangle' : 'sine'; o.frequency.value = f; o.detune.value = (i - 1) * 6; o.connect(pad); o.start(); });
-    const lfo = ctx.createOscillator(); lfo.frequency.value = .07; const lg = ctx.createGain(); lg.gain.value = .02; lfo.connect(lg); lg.connect(pad.gain); lfo.start();
+    // calm background: a soft desert breeze plus a rare, distant chime (no constant drone)
+    const wlen = ctx.sampleRate * 4, nb = ctx.createBuffer(1, wlen, ctx.sampleRate), nd = nb.getChannelData(0);
+    let b0 = 0; for (let i = 0; i < wlen; i++) { b0 = .985 * b0 + .015 * (Math.random() * 2 - 1); nd[i] = b0 * 3; } // brown-ish noise
+    const wind = ctx.createBufferSource(); wind.buffer = nb; wind.loop = true;
+    const wf = ctx.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 420; wf.Q.value = .3;
+    const wg = ctx.createGain(); wg.gain.value = .045;
+    const sway = ctx.createOscillator(); sway.frequency.value = .045; const sg = ctx.createGain(); sg.gain.value = .025;
+    sway.connect(sg); sg.connect(wg.gain); sway.start();
+    wind.connect(wf); wf.connect(wg); wg.connect(master); wind.start();
+    const chime = () => {
+      if (A.ctx && !A.muted) { const n = [0, 2, 4, 5, 7][Math.floor(Math.random() * 5)] + 10; tone(note(n), 0, 3.2, 'sine', .022, true, .4); }
+      setTimeout(chime, 9000 + Math.random() * 9000);
+    };
+    setTimeout(chime, 6000);
   } catch (e) { A.ctx = null; }
 }
 function tone(f, delay = 0, dur = .3, type = 'sine', gain = .15, wet = true, attack = .005) {
