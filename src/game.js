@@ -472,7 +472,6 @@ function recompute() { S.states = E.run(S.R, S.echoes, S.acts); }
 
 function startRun() {
   S.runSeed = (Math.random() * 1e9) >>> 0; S.n = 1; S.help = START_HELP; S.solved = 0; S.perfects = 0; S.over = false;
-  $('overScreen').hidden = true;
   startRoom();
 }
 function startRoom() {
@@ -806,7 +805,7 @@ renderer.domElement.addEventListener('pointerup', e => {
 });
 addEventListener('keydown', e => {
   const k = e.key; const map = { ArrowUp: 'U', ArrowDown: 'D', ArrowLeft: 'L', ArrowRight: 'R', w: 'U', s: 'D', a: 'L', d: 'R' };
-  if (!$('startScreen').hidden || !$('overScreen').hidden) return;
+  if (!$('startScreen').hidden) return;
   audioInit();
   if (map[k]) { S.walk = []; doAction(map[k]); e.preventDefault(); }
   else if (k === ' ') { S.walk = []; doAction('W'); e.preventDefault(); }
@@ -821,7 +820,6 @@ $('watch').onclick = () => { audioInit(); if (S.demo) stopDemo(); else startDemo
 $('undo').onclick = undo; $('restart').onclick = restart; $('hint').onclick = hint;
 $('mute').onclick = () => { A.muted = !A.muted; if (A.master) A.master.gain.value = A.muted ? 0 : .85; $('waves').style.opacity = A.muted ? .15 : 1; };
 $('go').onclick = async () => { audioInit(); $('go').disabled = true; await assetsReady; $('go').disabled = false; $('startScreen').hidden = true; startRun(); };
-$('again').onclick = () => { audioInit(); startRun(); };
 
 // ---------------- frame loop ----------------
 let last = performance.now(), T = 0;
