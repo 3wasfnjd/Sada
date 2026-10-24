@@ -230,13 +230,23 @@ function buildRoom() {
     const block = new THREE.Mesh(G.wall, M.door); block.position.y = .475; block.castShadow = block.receiveShadow = true;
     const seamMat = new THREE.MeshStandardMaterial({ color: gph.color, emissive: gph.color, emissiveIntensity: 1.6 });
     const seam = new THREE.Mesh(new THREE.BoxGeometry(1.01, .07, 1.01), seamMat); seam.position.y = .5;
-    const coin = new THREE.Mesh(new THREE.CylinderGeometry(.17, .17, .05, gph.seg), seamMat); coin.rotation.x = Math.PI / 2; coin.rotation.y = gph.rot; coin.position.set(0, .5, .52);
+    const inv = d.kind === 'inverse';
+    // inverse doors show an outline glyph (hollow), hold/timed a solid one
+    const glyphGeo = (r, t) => inv ? new THREE.RingGeometry(r * .55, r, gph.seg, 1, gph.rot) : new THREE.CylinderGeometry(r, r, t, gph.seg).rotateX(Math.PI / 2).rotateZ(gph.rot);
+    seamMat.side = THREE.DoubleSide;
+    const coin = new THREE.Mesh(glyphGeo(.17, .05), seamMat); coin.position.set(0, .5, .53);
     g.add(block, seam, coin);
     const holder = new THREE.Group(); holder.position.copy(cellV(d.x, d.y)); holder.add(g); roomGroup.add(holder);
-    const icon = new THREE.Mesh(new THREE.CylinderGeometry(.13, .13, .04, gph.seg), seamMat); icon.rotation.x = Math.PI / 2; icon.position.set(0, 1.45, 0);
+    const icon = new THREE.Mesh(glyphGeo(.13, .04), seamMat); icon.position.set(0, 1.45, 0);
     const ig = glowSprite(gph.color, .9, .55); ig.position.y = 1.45; holder.add(icon, ig);
+    // timed doors: three pips that drain while the door counts down
+    const pips = [];
+    if (d.kind === 'timed') for (let k = 0; k < 3; k++) {
+      const m = new THREE.MeshStandardMaterial({ color: gph.color, emissive: gph.color, emissiveIntensity: .2 });
+      const pip = new THREE.Mesh(new THREE.SphereGeometry(.055, 12, 8), m); pip.position.set((k - 1) * .2, 1.13, 0); holder.add(pip); pips.push(m);
+    }
     items.push({ kind: 'obj', obj: holder, y: 0, d: delayOf(d.x, d.y) + .05 });
-    return { g, icon, ig, seamMat, open: 0, target: 0, wasOpen: false };
+    return { g, icon, ig, seamMat, pips, kind: d.kind, timer: 0, open: 0, target: 0, wasOpen: false };
   });
   // plates
   S.plates = R.plates.map(p => {
@@ -244,9 +254,17 @@ function buildRoom() {
     const holder = new THREE.Group(); holder.position.copy(cellV(p.x, p.y));
     const b = new THREE.Mesh(new THREE.CylinderGeometry(.36, .4, .07, gph.seg), M.plateBase); b.rotation.y = gph.rot; b.position.y = .035; b.receiveShadow = true;
     const topMat = new THREE.MeshStandardMaterial({ color: gph.color, emissive: gph.color, emissiveIntensity: .5 });
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(.27, .27, .05, gph.seg), topMat); top.rotation.y = gph.rot; top.position.y = .1;
+    const kind = R.doors[p.door].kind;
+    let top;
+    if (kind === 'inverse') { topMat.side = THREE.DoubleSide; top = new THREE.Mesh(new THREE.RingGeometry(.15, .28, gph.seg, 1, gph.rot).rotateX(-Math.PI / 2), topMat); }
+    else { top = new THREE.Mesh(new THREE.CylinderGeometry(.27, .27, .05, gph.seg), topMat); top.rotation.y = gph.rot; }
+    top.position.y = .1;
     const gl = glowSprite(gph.color, 1.1, .25); gl.position.y = .15;
     holder.add(b, top, gl); roomGroup.add(holder);
+    if (kind === 'timed') for (let k = 0; k < 3; k++) {
+      const a = Math.PI / 2 + k * Math.PI * 2 / 3, tick = new THREE.Mesh(new THREE.BoxGeometry(.09, .04, .09), topMat);
+      tick.position.set(Math.cos(a) * .44, .05, -Math.sin(a) * .44); tick.rotation.y = a; holder.add(tick);
+    }
     items.push({ kind: 'obj', obj: holder, y: 0, d: delayOf(p.x, p.y) + .1 });
     return { top, topMat, gl, door: p.door, press: 0, target: 0, was: false, x: p.x, y: p.y };
   });
@@ -356,7 +374,7 @@ function doAction(a) {
   const hero = S.ents[S.ents.length - 1];
   if (a !== 'W' && me.blocked) { animEnt(hero, pos[pos.length - 1], pos[pos.length - 1], true, a); SFX.bump(); buzz(15); S.walk = []; return false; }
   if (!S.firstMove) { S.firstMove = true; $('finger').classList.remove('on'); }
-  S.acts.push(a); S.states.push(next.map(({ x, y }) => ({ x, y })));
+  S.acts.push(a); { const keep = next.map(({ x, y }) => ({ x, y })); keep.timers = next.timers; S.states.push(keep); }
   S.busy = true;
   next.forEach((n, i) => animEnt(S.ents[i], pos[i], n, n.blocked, acts[i]));
   const echoMoves = S.echoes.map((_, i) => pos[i].x !== next[i].x || pos[i].y !== next[i].y);
@@ -385,7 +403,15 @@ function pump() { if (S.walk.length && !S.busy) { const a = S.walk.shift(); if (
 
 function doorsUpdate(silent) {
   const pos = cur(), open = E.doorStates(S.R, pos);
-  S.doors.forEach((d, i) => { d.target = open[i] ? 1 : 0; if (!silent && open[i] !== d.wasOpen) SFX.door(open[i]); d.wasOpen = open[i]; });
+  S.doors.forEach((d, i) => {
+    d.target = open[i] ? 1 : 0; if (!silent && open[i] !== d.wasOpen) SFX.door(open[i]); d.wasOpen = open[i];
+    if (d.kind === 'timed') {
+      const held = S.R.plates.some(p => p.door === i && pos.some(e => e.x === p.x && e.y === p.y));
+      const t = held ? 3 : ((pos.timers && pos.timers[i]) || 0);
+      if (!silent && !held && t > 0 && t < d.timer) tone(1200 + t * 200, 0, .06, 'sine', .05, false);
+      d.timer = t;
+    }
+  });
   S.plates.forEach(p => {
     const on = pos.some(e => e.x === p.x && e.y === p.y);
     p.target = on ? 1 : 0;
@@ -521,8 +547,8 @@ let toastT = null;
 function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 1600); }
 function coach() {
   // teach the echo button through play: room with a door, plate used, still no echo
-  if (S.R.doors.length && !S.echoes.length && S.platePressedOnce && S.acts.length >= 2) $('echo').classList.add('pulse');
-  if (S.R.L - S.acts.length <= 2 && S.R.doors.length > S.echoes.length) $('echo').classList.add('pulse');
+  if (S.R.par > 0 && !S.echoes.length && S.platePressedOnce && S.acts.length >= 2) $('echo').classList.add('pulse');
+  if (S.R.L - S.acts.length <= 2 && S.R.par > S.echoes.length) $('echo').classList.add('pulse');
 }
 
 // ---------------- input ----------------
@@ -591,7 +617,8 @@ function frame(now) {
   for (const d of S.doors) {
     d.open += (d.target - d.open) * Math.min(1, dt * 10);
     d.g.position.y = -d.open * .97; d.seamMat.emissiveIntensity = 1.4 + d.open * 1.6 + Math.sin(T * 3) * .2;
-    d.icon.rotation.z = T * 1.2; d.icon.position.y = 1.45 + Math.sin(T * 2) * .05; d.ig.material.opacity = .4 + d.open * .5;
+    d.icon.rotation.y = T * 1.2; d.icon.position.y = 1.45 + Math.sin(T * 2) * .05; d.ig.material.opacity = .4 + d.open * .5;
+    d.pips.forEach((m, k) => { const lit = k < d.timer; m.emissiveIntensity += ((lit ? 2.4 : .15) - m.emissiveIntensity) * Math.min(1, dt * 12); });
   }
   for (const p of S.plates) {
     p.press += (p.target - p.press) * Math.min(1, dt * 14);

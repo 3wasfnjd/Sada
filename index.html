@@ -110,7 +110,7 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
     <p>كل ما تفعله الآن، ستفعله نسخة منك في الجولة القادمة. استعن بأصدائك لتفتح الأبواب.</p>
     <div class="stats"><div><b id="bestStart">٠</b><span>أبعد غرفة</span></div></div>
     <button class="big" id="go">ابدأ</button>
-    <div class="brand">عبودين قيمز · ABODEN GAMES</div>
+    <div class="brand">عبودين قيمز · ABODEN GAMES · v0.2.0</div>
   </div>
 </div>
 <div class="overlay" id="overScreen" hidden>
@@ -122,10 +122,16 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
   </div>
 </div>
 
-<script>// ===== صدى — pure game logic (no rendering) =====
+<script>// ===== صدى — pure game logic (no rendering) — v0.2 =====
+// Door kinds:
+//   hold    — open while someone stands on its plate
+//   timed   — like hold, but stays open TIMER more ticks after the plate is left
+//   inverse — open by default, CLOSED while someone stands on its plate
+// Any door with someone standing inside it stays open.
 (function (root) {
   const DIRS = { U: [0, 1], D: [0, -1], L: [-1, 0], R: [1, 0], W: [0, 0] };
   const MOVES = ['U', 'D', 'L', 'R'];
+  const TIMER = 3;
 
   function rng(seed) {
     let s = seed >>> 0;
@@ -136,41 +142,51 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
+  const clampI = (v, a, b) => Math.max(a, Math.min(b, v));
   const ri = (r, a, b) => a + Math.floor(r() * (b - a + 1));
   const pick = (r, arr) => arr[Math.floor(r() * arr.length)];
-
-  // room: {W,H,wall:Uint8Array, doors:[{x,y}], plates:[{x,y,door}], start:{x,y}, exit:{x,y}, L, par, solution}
   const idx = (room, x, y) => y * room.W + x;
+  const same = (a, b) => a.x === b.x && a.y === b.y;
   function doorAt(room, x, y) { for (let i = 0; i < room.doors.length; i++) if (room.doors[i].x === x && room.doors[i].y === y) return i; return -1; }
 
-  function doorStates(room, pos) {
-    const open = room.doors.map(() => false);
-    for (const p of room.plates) for (const e of pos) if (e.x === p.x && e.y === p.y) open[p.door] = true;
-    room.doors.forEach((d, i) => { for (const e of pos) if (e.x === d.x && e.y === d.y) open[i] = true; });
-    return open;
-  }
+  // positions arrays carry .timers (one per door, 0 for non-timed)
+  function withTimers(pos, timers) { pos.timers = timers; return pos; }
+  function plateOn(room, pos, door) { return room.plates.some(p => p.door === door && pos.some(e => e.x === p.x && e.y === p.y)); }
 
-  // advance every entity one tick; actions[i] for entity i
-  function step(room, pos, actions) {
-    const open = doorStates(room, pos);
-    return pos.map((e, i) => {
-      const d = DIRS[actions[i] || 'W'];
-      const nx = e.x + d[0], ny = e.y + d[1];
-      if (nx < 0 || ny < 0 || nx >= room.W || ny >= room.H) return { x: e.x, y: e.y, blocked: d[0] || d[1] ? true : false };
-      if (room.wall[idx(room, nx, ny)]) return { x: e.x, y: e.y, blocked: !!(d[0] || d[1]) };
-      const di = doorAt(room, nx, ny);
-      if (di >= 0 && !open[di]) return { x: e.x, y: e.y, blocked: true };
-      return { x: nx, y: ny, blocked: false };
+  function doorStates(room, pos) {
+    const timers = pos.timers || [];
+    return room.doors.map((d, i) => {
+      const on = plateOn(room, pos, i);
+      let open = d.kind === 'inverse' ? !on : (on || (d.kind === 'timed' && (timers[i] || 0) > 0));
+      if (pos.some(e => e.x === d.x && e.y === d.y)) open = true;
+      return open;
     });
   }
 
-  // run a whole loop: echoes (arrays of actions) + player actions; returns states[t] = positions (echoes..., player)
+  function step(room, pos, actions) {
+    const open = doorStates(room, pos);
+    const next = pos.map((e, i) => {
+      const d = DIRS[actions[i] || 'W'];
+      const moving = !!(d[0] || d[1]);
+      const nx = e.x + d[0], ny = e.y + d[1];
+      if (nx < 0 || ny < 0 || nx >= room.W || ny >= room.H) return { x: e.x, y: e.y, blocked: moving };
+      if (room.wall[idx(room, nx, ny)]) return { x: e.x, y: e.y, blocked: moving };
+      const di = doorAt(room, nx, ny);
+      if (di >= 0 && !open[di] && !(e.x === nx && e.y === ny)) return { x: e.x, y: e.y, blocked: true };
+      return { x: nx, y: ny, blocked: false };
+    });
+    const t0 = pos.timers || [];
+    return withTimers(next, room.doors.map((d, i) => d.kind !== 'timed' ? 0 : plateOn(room, pos, i) ? TIMER : Math.max(0, (t0[i] || 0) - 1)));
+  }
+
+  function startPos(room, n) { return withTimers(Array.from({ length: n }, () => ({ ...room.start })), room.doors.map(() => 0)); }
+
+  // states[t] = positions (echoes..., player) after t ticks
   function run(room, echoes, player) {
-    let pos = echoes.map(() => ({ ...room.start })).concat([{ ...room.start }]);
+    let pos = startPos(room, echoes.length + 1);
     const states = [pos];
     for (let t = 0; t < player.length; t++) {
-      const acts = echoes.map(e => e[t] || 'W').concat([player[t]]);
-      pos = step(room, pos, acts);
+      pos = step(room, pos, echoes.map(e => e[t] || 'W').concat([player[t]]));
       states.push(pos);
     }
     return states;
@@ -179,8 +195,9 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
   function bfsPath(room, from, to, doorsPassable) {
     const W = room.W, H = room.H, prev = new Int32Array(W * H).fill(-2);
     const q = [idx(room, from.x, from.y)]; prev[q[0]] = -1;
-    while (q.length) {
-      const c = q.shift(); const cx = c % W, cy = (c / W) | 0;
+    let head = 0;
+    while (head < q.length) {
+      const c = q[head++]; const cx = c % W, cy = (c / W) | 0;
       if (cx === to.x && cy === to.y) {
         const path = []; let k = c;
         while (k !== -1) { path.push({ x: k % W, y: (k / W) | 0 }); k = prev[k]; }
@@ -191,44 +208,84 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
         if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
         const n = idx(room, nx, ny);
         if (prev[n] !== -2 || room.wall[n]) continue;
-        if (!doorsPassable && doorAt(room, nx, ny) >= 0) continue;
+        if (!doorsPassable) { const di = doorAt(room, nx, ny); if (di >= 0 && room.doors[di].kind !== 'inverse') continue; }
         prev[n] = c; q.push(n);
       }
     }
     return null;
   }
 
-  // walk a path, waiting at closed doors, given already-recorded echoes
-  function route(room, echoes, target) {
-    const path = bfsPath(room, room.start, target, true);
-    if (!path) return null;
-    const acts = [];
-    let pi = 0, guard = 0;
-    while (pi < path.length - 1 && guard++ < 80) {
-      const states = run(room, echoes, acts.concat(['W']));
-      const pos = states[states.length - 2];
-      const me = pos[pos.length - 1];
-      const nxt = path[pi + 1];
-      const m = MOVES.find(k => me.x + DIRS[k][0] === nxt.x && me.y + DIRS[k][1] === nxt.y);
-      const after = step(room, pos, echoes.map(e => e[acts.length] || 'W').concat([m]));
-      const meAfter = after[after.length - 1];
-      if (meAfter.x === nxt.x && meAfter.y === nxt.y) { acts.push(m); pi++; }
-      else acts.push('W');
+  // walk to each target in turn (shortest paths), waiting whenever the next step is blocked;
+  // waits[k] extra ticks are spent standing on intermediate target k
+  function routeMulti(room, echoes, targets, waits = []) {
+    const acts = []; let from = { ...room.start };
+    for (let k = 0; k < targets.length; k++) {
+      const path = bfsPath(room, from, targets[k], true);
+      if (!path) return null;
+      let pi = 0, guard = 0;
+      while (pi < path.length - 1 && guard++ < 40) {
+        const states = run(room, echoes, acts);
+        const pos = states[states.length - 1];
+        const me = pos[pos.length - 1];
+        const nxt = path[pi + 1];
+        const m = MOVES.find(mm => me.x + DIRS[mm][0] === nxt.x && me.y + DIRS[mm][1] === nxt.y);
+        const after = step(room, pos, echoes.map(e => e[acts.length] || 'W').concat([m]));
+        if (same(after[after.length - 1], nxt)) { acts.push(m); pi++; } else acts.push('W');
+      }
+      if (pi !== path.length - 1) return null;
+      if (k < targets.length - 1) for (let w = 0; w < (waits[k] || 0); w++) acts.push('W');
+      from = targets[k];
     }
-    return pi === path.length - 1 ? acts : null;
+    return acts;
   }
 
-  function solve(room) {
-    const echoes = [];
-    for (let i = 0; i < room.doors.length; i++) {
-      const p = room.plates.find(pl => pl.door === i);
-      const a = route(room, echoes, p);
-      if (!a) return null;
-      echoes.push(a);
+  const plateOf = (room, door) => room.plates.find(p => p.door === door);
+
+  // tasks: [[doorIdx, ...], ...] — one echo per task, pressing its doors' plates in order.
+  // playerFirst: door indices whose plates the player presses on the way (timed doors only).
+  function solveTasks(room, tasks, playerFirst = []) {
+    const relay = tasks.map((t, i) => t.length > 1 ? i : -1).filter(i => i >= 0);
+    const combos = relay.length ? cartesian(relay.map(() => [0, 1, 2, 3, 4, 5])) : [[]];
+    for (const combo of combos) {
+      const echoes = []; let ok = true;
+      for (let j = 0; j < tasks.length; j++) {
+        const waits = relay.includes(j) ? Array(tasks[j].length - 1).fill(combo[relay.indexOf(j)]) : [];
+        const a = routeMulti(room, echoes, tasks[j].map(di => plateOf(room, di)), waits);
+        if (!a) { ok = false; break; }
+        echoes.push(a);
+      }
+      if (!ok) continue;
+      for (const pw of [0, 1, 2]) {
+        const targets = playerFirst.map(di => plateOf(room, di)).concat([room.exit]);
+        const player = routeMulti(room, echoes, targets, playerFirst.map(() => pw));
+        if (player && reaches(room, echoes, player)) return { echoes, player };
+      }
     }
-    const player = route(room, echoes, room.exit);
-    if (!player) return null;
-    return { echoes, player };
+    return null;
+  }
+  function cartesian(lists) { return lists.reduce((acc, l) => acc.flatMap(a => l.map(x => a.concat([x]))), [[]]); }
+  function reaches(room, echoes, player) {
+    const L = Math.max(player.length, ...echoes.map(e => e.length), 0);
+    const st = run(room, echoes.map(e => pad(e, L)), player);
+    return same(st[st.length - 1][echoes.length], room.exit);
+  }
+
+  // exact check: can the player alone reach the exit within L ticks? (BFS over position + door timers)
+  function aloneSolvable(room, L) {
+    const start = startPos(room, 1);
+    const key = p => p[0].x + ',' + p[0].y + '|' + p.timers.join('');
+    let frontier = [start]; const seen = new Set([key(start)]);
+    for (let t = 0; t < L; t++) {
+      const nextF = [];
+      for (const p of frontier) for (const a of ['U', 'D', 'L', 'R', 'W']) {
+        const n = step(room, p, [a]);
+        if (a !== 'W' && n[0].blocked) continue;
+        if (same(n[0], room.exit)) return true;
+        const k = key(n); if (!seen.has(k)) { seen.add(k); nextF.push(n); }
+      }
+      frontier = nextF;
+    }
+    return false;
   }
 
   function regionConnected(room, cells) {
@@ -244,21 +301,27 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 
   // ---------- generator ----------
   function difficulty(level) {
-    // level counts generated rooms from 1
-    const k = level <= 3 ? 2 : level <= 10 ? 2 + (level % 2) : level <= 18 ? 3 : 3 + (level % 3 === 0 ? 1 : 0);
-    const W = level < 8 ? 5 : 6;
-    const deep = Math.min(0.85, 0.15 + level * 0.05); // chance a plate sits beyond earlier doors
-    const obst = Math.min(0.22, 0.04 + level * 0.012);
-    const slack = Math.max(1, 3 - Math.floor(level / 6));
-    return { k, W, deep, obst, slack };
+    const k = level <= 3 ? 2 : level <= 10 ? 2 + (level % 2) : level <= 20 ? 3 : 3 + (level % 3 === 0 ? 1 : 0);
+    return {
+      k,
+      W: level < 10 ? 5 : 6,
+      deep: Math.min(0.8, 0.15 + level * 0.05),
+      obst: Math.min(0.2, 0.05 + level * 0.01),
+      slack: Math.max(1, 2 - Math.floor(level / 8)),
+      tall: Math.min(0.6, 0.2 + level * 0.02),
+      pTimed: level < 2 ? 0 : Math.min(0.7, 0.35 + level * 0.03),
+      pRelay: level < 3 ? 0 : 0.9,
+      pPattern: level < 3 ? 0 : 0.45,
+      pInverse: level < 5 ? 0 : Math.min(0.45, 0.2 + level * 0.015),
+    };
   }
 
   function generate(level, seed) {
-    for (let attempt = 0; attempt < 400; attempt++) {
+    for (let attempt = 0; attempt < 300; attempt++) {
       const r = rng(seed + attempt * 7919);
       const d = difficulty(level);
       const k = d.k, W = d.W;
-      const hs = []; for (let i = 0; i <= k; i++) hs.push(i === 0 || i === k ? 2 : (k >= 3 ? ri(r, 1, 2) : 2));
+      const hs = []; for (let i = 0; i <= k; i++) hs.push(i === 0 ? 2 : r() < d.tall ? 2 : 1);
       const H = hs.reduce((a, b) => a + b, 0) + k;
       const room = { W, H, wall: new Uint8Array(W * H), doors: [], plates: [], regions: [] };
       let y = 0;
@@ -267,13 +330,22 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
         room.regions.push(rows); y += hs[i];
         if (i < k) {
           for (let x = 0; x < W; x++) room.wall[idx(room, x, y)] = 1;
-          const dx = ri(r, 0, W - 1); room.wall[idx(room, dx, y)] = 0; room.doors.push({ x: dx, y });
+          const px = room.doors.length ? room.doors[room.doors.length - 1].x : ri(r, 0, W - 1);
+          const dx = clampI(px + ri(r, -2, 2), 0, W - 1); room.wall[idx(room, dx, y)] = 0;
+          const kind = i > 0 && r() < d.pInverse ? 'inverse' : r() < d.pTimed ? 'timed' : 'hold';
+          room.doors.push({ x: dx, y, kind });
           y++;
         }
       }
+      if (room.doors.every(dd => dd.kind === 'inverse')) continue;
+      // relay pattern: two consecutive timed gates that one well-timed echo can serve
+      let forced = -1;
+      if (k >= 2 && r() < d.pPattern) {
+        const cand = []; for (let i = 0; i < k - 1; i++) if (room.doors[i].kind !== 'inverse' && room.doors[i + 1].kind !== 'inverse') cand.push(i);
+        if (cand.length) { forced = pick(r, cand); room.doors[forced].kind = room.doors[forced + 1].kind = 'timed'; }
+      }
       const cellsOf = i => { const c = []; for (const yy of room.regions[i]) for (let x = 0; x < W; x++) c.push([x, yy]); return c; };
       const near = new Set(); room.doors.forEach(dd => { near.add(dd.x + ',' + (dd.y - 1)); near.add(dd.x + ',' + (dd.y + 1)); });
-      // obstacles
       for (let i = 0; i <= k; i++) {
         const cells = cellsOf(i);
         for (const [x, yy] of cells) {
@@ -285,77 +357,132 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
       const free = i => cellsOf(i).filter(([x, yy]) => !room.wall[idx(room, x, yy)] && !near.has(x + ',' + yy));
       const used = new Set();
       const take = list => { const c = list.filter(([x, yy]) => !used.has(x + ',' + yy)); if (!c.length) return null; const p = pick(r, c); used.add(p[0] + ',' + p[1]); return { x: p[0], y: p[1] }; };
-      // start: bottom region, prefer bottom row; exit: top region, prefer far from the last door
-      room.start = take(free(0).filter(([, yy]) => yy === 0).length ? free(0).filter(([, yy]) => yy === 0) : free(0));
-      const top = free(k).sort((a, b) => (Math.abs(b[0] - room.doors[k - 1].x) + b[1]) - (Math.abs(a[0] - room.doors[k - 1].x) + a[1]));
-      room.exit = top.length ? (used.add(top[0][0] + ',' + top[0][1]), { x: top[0][0], y: top[0][1] }) : null;
+      const bottom = free(0).filter(([, yy]) => yy === 0);
+      room.start = take(bottom.length ? bottom : free(0));
+      const topRow = free(k).filter(([, yy]) => yy === H - 1);
+      room.exit = take(topRow.length ? topRow : free(k));
       if (!room.start || !room.exit) continue;
+
+      // plates for gate doors (hold / timed); inverse plates come later
       let bad = false;
       for (let i = 0; i < k; i++) {
+        if (room.doors[i].kind === 'inverse') continue;
         let reg = 0;
         if (i > 0 && r() < d.deep) reg = ri(r, 1, i);
-        const p = take(free(reg).filter(([x, yy]) => Math.abs(x - room.doors[i].x) + Math.abs(yy - room.doors[i].y) >= 2));
+        // timed plates sit far enough from their door that the player cannot sprint through alone
+        const minDist = room.doors[i].kind === 'timed' ? TIMER + 2 : 2;
+        const p = take(free(reg).filter(([x, yy]) => Math.abs(x - room.doors[i].x) + Math.abs(yy - room.doors[i].y) >= minDist));
         if (!p) { bad = true; break; }
         room.plates.push({ x: p.x, y: p.y, door: i });
       }
       if (bad) continue;
-      const sol = solve(room);
+
+      // tasks: one echo per gate, but consecutive timed gates may share one echo (relay)
+      const tasks = [];
+      for (let i = 0; i < k; i++) {
+        if (room.doors[i].kind === 'inverse') continue;
+        const last = tasks[tasks.length - 1];
+        if (last && room.doors[i].kind === 'timed' && room.doors[last[last.length - 1]].kind === 'timed' && (i === forced + 1 || r() < d.pRelay)) last.push(i);
+        else tasks.push([i]);
+      }
+      let sol = solveTasks(room, tasks);
       if (!sol) continue;
+
+      // inverse plates: put each on a cell an echo walks over (so a past self briefly shuts the door)
+      let invOk = true;
+      for (let i = 0; i < k; i++) {
+        if (room.doors[i].kind !== 'inverse') continue;
+        const L0 = Math.max(sol.player.length, ...sol.echoes.map(e => e.length));
+        const st = run(room, sol.echoes.map(e => pad(e, L0)), pad(sol.player, L0));
+        const crossed = [];
+        for (let t = 1; t < st.length; t++) for (let j = 0; j < sol.echoes.length; j++) {
+          const c = st[t][j]; const key = c.x + ',' + c.y;
+          if (used.has(key) || near.has(key) || doorAt(room, c.x, c.y) >= 0 || room.plates.some(p => same(p, c))) continue;
+          if (sol.echoes.every((_, jj) => !same(st[st.length - 1][jj], c))) crossed.push([c.x, c.y]);
+        }
+        const p = crossed.length ? take(crossed) : null;
+        if (!p) { invOk = false; break; }
+        room.plates.push({ x: p.x, y: p.y, door: i });
+        sol = solveTasks(room, tasks);
+        if (!sol) { invOk = false; break; }
+      }
+      if (!invOk) continue;
+
+      // honest par: can a timed gate be handled by the player himself instead of an echo?
+      let par = tasks.length;
+      for (let j = tasks.length - 1; j >= 0 && par > 1; j--) {
+        if (!tasks[j].every(di => room.doors[di].kind === 'timed')) continue;
+        const fewer = tasks.filter((_, jj) => jj !== j);
+        const s2 = solveTasks(room, fewer, tasks[j]);
+        if (s2) { par--; }
+      }
       const len = Math.max(sol.player.length, ...sol.echoes.map(e => e.length));
       room.L = len + d.slack;
-      room.par = k;
+      room.par = Math.min(par, tasks.length);
+      room.tasks = tasks;
       room.solution = sol;
       if (!verify(room)) continue;
       room.seed = seed; room.level = level;
+      room.features = {
+        timed: room.doors.some(dd => dd.kind === 'timed'),
+        relay: tasks.some(t => t.length > 1),
+        inverse: room.doors.some(dd => dd.kind === 'inverse'),
+      };
       return room;
     }
     return null;
   }
 
-  function verify(room) {
+  function verify(room, allowAlone) {
     const s = room.solution;
-    const echoes = s.echoes.map(e => pad(e, room.L));
-    const states = run(room, echoes, s.player);
-    const last = states[states.length - 1];
-    const me = last[last.length - 1];
-    if (!(me.x === room.exit.x && me.y === room.exit.y && s.player.length <= room.L)) return false;
-    // alone: the exit must be unreachable without anyone holding plates
-    return !bfsPath(room, room.start, room.exit, false);
+    if (!s || s.player.length > room.L) return false;
+    if (!reaches(room, s.echoes.map(e => pad(e, room.L)), s.player)) return false;
+    return allowAlone ? true : !aloneSolvable(room, room.L);
   }
   const pad = (a, L) => a.concat(Array(Math.max(0, L - a.length)).fill('W'));
 
   // hand-made opening rooms (rows listed top -> bottom)
-  // # wall  . floor  S start  E exit  a/b/c door  1/2/3 plate for door a/b/c
+  // # wall  . floor  S start  E exit
+  // a/b/c hold door, A/B/C timed door; 1/2/3 plate for door a|A / b|B / c|C; x/y/z inverse plate (makes that door inverse)
   const TUTORIAL = [
     { L: 9, map: ['#.E.#', '#...#', '.....', '..#..', '.....', '..S..'] },
     { L: 9, map: ['..E..', '.....', '##a##', '.....', '1...S'] },
     { L: 16, map: ['.E...', '.....', '###b#', '.....', '.....', '#a###', '.....', '2..1S'] },
+    { L: 12, map: ['..E..', '.....', '##A##', '.....', '1...S'], alone: true },
+    { L: 14, map: ['E....', '.....', '##b##', '.y...', '.....', '#a###', '.....', '1...S'] },
   ];
   function fromMap(def, level) {
     const rows = def.map.slice().reverse(); const H = rows.length, W = rows[0].length;
     const room = { W, H, wall: new Uint8Array(W * H), doors: [], plates: [], L: def.L, level, tutorial: true };
-    const doorIds = {}, plateDefs = [];
+    const doorDefs = [], plateDefs = [];
     rows.forEach((row, y) => [...row].forEach((ch, x) => {
       if (ch === '#') room.wall[y * W + x] = 1;
       else if (ch === 'S') room.start = { x, y };
       else if (ch === 'E') room.exit = { x, y };
-      else if (/[a-c]/.test(ch)) doorIds[ch] = { x, y };
-      else if (/[1-3]/.test(ch)) plateDefs.push({ x, y, ch: 'abc'[+ch - 1] });
+      else if (/[a-cA-C]/.test(ch)) doorDefs.push({ id: ch.toLowerCase(), x, y, kind: ch === ch.toUpperCase() ? 'timed' : 'hold' });
+      else if (/[1-3]/.test(ch)) plateDefs.push({ x, y, id: 'abc'[+ch - 1], inv: false });
+      else if (/[x-z]/.test(ch)) plateDefs.push({ x, y, id: 'abc'['xyz'.indexOf(ch)], inv: true });
     }));
-    const keys = Object.keys(doorIds).sort((a, b) => doorIds[a].y - doorIds[b].y);
-    keys.forEach(kk => room.doors.push(doorIds[kk]));
-    plateDefs.forEach(p => room.plates.push({ x: p.x, y: p.y, door: keys.indexOf(p.ch) }));
-    room.par = room.doors.length;
-    room.solution = room.doors.length ? solve(room) : { echoes: [], player: route(room, [], room.exit) };
+    doorDefs.sort((a, b) => a.y - b.y);
+    doorDefs.forEach(dd => room.doors.push({ x: dd.x, y: dd.y, kind: dd.kind }));
+    plateDefs.forEach(p => { const di = doorDefs.findIndex(dd => dd.id === p.id); if (p.inv) room.doors[di].kind = 'inverse'; room.plates.push({ x: p.x, y: p.y, door: di }); });
+    const tasks = room.doors.map((dd, i) => i).filter(i => room.doors[i].kind !== 'inverse').map(i => [i]);
+    if (def.alone) {
+      const gates = tasks.map(t => t[0]);
+      room.solution = solveTasks(room, [], gates); room.par = 0;
+    } else {
+      room.solution = solveTasks(room, tasks); room.par = tasks.length;
+    }
+    room.tasks = tasks;
     return room;
   }
 
   function roomFor(n, runSeed) { // n = 1-based room number in a run
-    if (n <= TUTORIAL.length) return fromMap(TUTORIAL[n - 1].map ? TUTORIAL[n - 1] : TUTORIAL[0], n);
+    if (n <= TUTORIAL.length) return fromMap(TUTORIAL[n - 1], n);
     return generate(n - TUTORIAL.length, (runSeed * 1000003 + n * 7919) >>> 0);
   }
 
-  root.EchoLogic = { DIRS, MOVES, rng, step, run, doorStates, doorAt, generate, verify, roomFor, pad, bfsPath, difficulty, TUTORIAL, fromMap, solve };
+  root.EchoLogic = { DIRS, MOVES, TIMER, rng, step, run, startPos, doorStates, doorAt, generate, verify, roomFor, pad, bfsPath, difficulty, TUTORIAL, fromMap, solveTasks, aloneSolvable };
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
 <script type="module">import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
@@ -590,13 +717,23 @@ function buildRoom() {
     const block = new THREE.Mesh(G.wall, M.door); block.position.y = .475; block.castShadow = block.receiveShadow = true;
     const seamMat = new THREE.MeshStandardMaterial({ color: gph.color, emissive: gph.color, emissiveIntensity: 1.6 });
     const seam = new THREE.Mesh(new THREE.BoxGeometry(1.01, .07, 1.01), seamMat); seam.position.y = .5;
-    const coin = new THREE.Mesh(new THREE.CylinderGeometry(.17, .17, .05, gph.seg), seamMat); coin.rotation.x = Math.PI / 2; coin.rotation.y = gph.rot; coin.position.set(0, .5, .52);
+    const inv = d.kind === 'inverse';
+    // inverse doors show an outline glyph (hollow), hold/timed a solid one
+    const glyphGeo = (r, t) => inv ? new THREE.RingGeometry(r * .55, r, gph.seg, 1, gph.rot) : new THREE.CylinderGeometry(r, r, t, gph.seg).rotateX(Math.PI / 2).rotateZ(gph.rot);
+    seamMat.side = THREE.DoubleSide;
+    const coin = new THREE.Mesh(glyphGeo(.17, .05), seamMat); coin.position.set(0, .5, .53);
     g.add(block, seam, coin);
     const holder = new THREE.Group(); holder.position.copy(cellV(d.x, d.y)); holder.add(g); roomGroup.add(holder);
-    const icon = new THREE.Mesh(new THREE.CylinderGeometry(.13, .13, .04, gph.seg), seamMat); icon.rotation.x = Math.PI / 2; icon.position.set(0, 1.45, 0);
+    const icon = new THREE.Mesh(glyphGeo(.13, .04), seamMat); icon.position.set(0, 1.45, 0);
     const ig = glowSprite(gph.color, .9, .55); ig.position.y = 1.45; holder.add(icon, ig);
+    // timed doors: three pips that drain while the door counts down
+    const pips = [];
+    if (d.kind === 'timed') for (let k = 0; k < 3; k++) {
+      const m = new THREE.MeshStandardMaterial({ color: gph.color, emissive: gph.color, emissiveIntensity: .2 });
+      const pip = new THREE.Mesh(new THREE.SphereGeometry(.055, 12, 8), m); pip.position.set((k - 1) * .2, 1.13, 0); holder.add(pip); pips.push(m);
+    }
     items.push({ kind: 'obj', obj: holder, y: 0, d: delayOf(d.x, d.y) + .05 });
-    return { g, icon, ig, seamMat, open: 0, target: 0, wasOpen: false };
+    return { g, icon, ig, seamMat, pips, kind: d.kind, timer: 0, open: 0, target: 0, wasOpen: false };
   });
   // plates
   S.plates = R.plates.map(p => {
@@ -604,9 +741,17 @@ function buildRoom() {
     const holder = new THREE.Group(); holder.position.copy(cellV(p.x, p.y));
     const b = new THREE.Mesh(new THREE.CylinderGeometry(.36, .4, .07, gph.seg), M.plateBase); b.rotation.y = gph.rot; b.position.y = .035; b.receiveShadow = true;
     const topMat = new THREE.MeshStandardMaterial({ color: gph.color, emissive: gph.color, emissiveIntensity: .5 });
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(.27, .27, .05, gph.seg), topMat); top.rotation.y = gph.rot; top.position.y = .1;
+    const kind = R.doors[p.door].kind;
+    let top;
+    if (kind === 'inverse') { topMat.side = THREE.DoubleSide; top = new THREE.Mesh(new THREE.RingGeometry(.15, .28, gph.seg, 1, gph.rot).rotateX(-Math.PI / 2), topMat); }
+    else { top = new THREE.Mesh(new THREE.CylinderGeometry(.27, .27, .05, gph.seg), topMat); top.rotation.y = gph.rot; }
+    top.position.y = .1;
     const gl = glowSprite(gph.color, 1.1, .25); gl.position.y = .15;
     holder.add(b, top, gl); roomGroup.add(holder);
+    if (kind === 'timed') for (let k = 0; k < 3; k++) {
+      const a = Math.PI / 2 + k * Math.PI * 2 / 3, tick = new THREE.Mesh(new THREE.BoxGeometry(.09, .04, .09), topMat);
+      tick.position.set(Math.cos(a) * .44, .05, -Math.sin(a) * .44); tick.rotation.y = a; holder.add(tick);
+    }
     items.push({ kind: 'obj', obj: holder, y: 0, d: delayOf(p.x, p.y) + .1 });
     return { top, topMat, gl, door: p.door, press: 0, target: 0, was: false, x: p.x, y: p.y };
   });
@@ -716,7 +861,7 @@ function doAction(a) {
   const hero = S.ents[S.ents.length - 1];
   if (a !== 'W' && me.blocked) { animEnt(hero, pos[pos.length - 1], pos[pos.length - 1], true, a); SFX.bump(); buzz(15); S.walk = []; return false; }
   if (!S.firstMove) { S.firstMove = true; $('finger').classList.remove('on'); }
-  S.acts.push(a); S.states.push(next.map(({ x, y }) => ({ x, y })));
+  S.acts.push(a); { const keep = next.map(({ x, y }) => ({ x, y })); keep.timers = next.timers; S.states.push(keep); }
   S.busy = true;
   next.forEach((n, i) => animEnt(S.ents[i], pos[i], n, n.blocked, acts[i]));
   const echoMoves = S.echoes.map((_, i) => pos[i].x !== next[i].x || pos[i].y !== next[i].y);
@@ -745,7 +890,15 @@ function pump() { if (S.walk.length && !S.busy) { const a = S.walk.shift(); if (
 
 function doorsUpdate(silent) {
   const pos = cur(), open = E.doorStates(S.R, pos);
-  S.doors.forEach((d, i) => { d.target = open[i] ? 1 : 0; if (!silent && open[i] !== d.wasOpen) SFX.door(open[i]); d.wasOpen = open[i]; });
+  S.doors.forEach((d, i) => {
+    d.target = open[i] ? 1 : 0; if (!silent && open[i] !== d.wasOpen) SFX.door(open[i]); d.wasOpen = open[i];
+    if (d.kind === 'timed') {
+      const held = S.R.plates.some(p => p.door === i && pos.some(e => e.x === p.x && e.y === p.y));
+      const t = held ? 3 : ((pos.timers && pos.timers[i]) || 0);
+      if (!silent && !held && t > 0 && t < d.timer) tone(1200 + t * 200, 0, .06, 'sine', .05, false);
+      d.timer = t;
+    }
+  });
   S.plates.forEach(p => {
     const on = pos.some(e => e.x === p.x && e.y === p.y);
     p.target = on ? 1 : 0;
@@ -881,8 +1034,8 @@ let toastT = null;
 function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 1600); }
 function coach() {
   // teach the echo button through play: room with a door, plate used, still no echo
-  if (S.R.doors.length && !S.echoes.length && S.platePressedOnce && S.acts.length >= 2) $('echo').classList.add('pulse');
-  if (S.R.L - S.acts.length <= 2 && S.R.doors.length > S.echoes.length) $('echo').classList.add('pulse');
+  if (S.R.par > 0 && !S.echoes.length && S.platePressedOnce && S.acts.length >= 2) $('echo').classList.add('pulse');
+  if (S.R.L - S.acts.length <= 2 && S.R.par > S.echoes.length) $('echo').classList.add('pulse');
 }
 
 // ---------------- input ----------------
@@ -951,7 +1104,8 @@ function frame(now) {
   for (const d of S.doors) {
     d.open += (d.target - d.open) * Math.min(1, dt * 10);
     d.g.position.y = -d.open * .97; d.seamMat.emissiveIntensity = 1.4 + d.open * 1.6 + Math.sin(T * 3) * .2;
-    d.icon.rotation.z = T * 1.2; d.icon.position.y = 1.45 + Math.sin(T * 2) * .05; d.ig.material.opacity = .4 + d.open * .5;
+    d.icon.rotation.y = T * 1.2; d.icon.position.y = 1.45 + Math.sin(T * 2) * .05; d.ig.material.opacity = .4 + d.open * .5;
+    d.pips.forEach((m, k) => { const lit = k < d.timer; m.emissiveIntensity += ((lit ? 2.4 : .15) - m.emissiveIntensity) * Math.min(1, dt * 12); });
   }
   for (const p of S.plates) {
     p.press += (p.target - p.press) * Math.min(1, dt * 14);
