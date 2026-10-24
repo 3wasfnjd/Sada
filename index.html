@@ -1,7 +1,9 @@
 <title>صدى</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@600;700&family=Readex+Pro:wght@400;600&display=swap">
+<link rel="stylesheet" href="vendor/fonts/reem-kufi/600.css">
+<link rel="stylesheet" href="vendor/fonts/reem-kufi/700.css">
+<link rel="stylesheet" href="vendor/fonts/readex-pro/400.css">
+<link rel="stylesheet" href="vendor/fonts/readex-pro/600.css">
 <style>
 /* Layout: full-screen portrait app — thin HUD on top, 3D stage, timeline + action bar at the thumb. Deliberate single night theme. */
 :root{
@@ -26,7 +28,7 @@ header{display:flex;align-items:center;gap:10px;padding-block:10px 4px}
 .iconbtn{width:38px;height:38px;border-radius:50%;border:0;background:rgba(255,255,255,.06);color:var(--ink);display:grid;place-items:center;cursor:pointer}
 .iconbtn svg{width:20px;height:20px}
 .iconbtn.on{background:var(--echo);color:#0d0f22}
-#stage.demo::after{content:"عرض";position:absolute;top:12px;right:12px;padding:4px 12px;border-radius:999px;background:rgba(143,216,255,.85);color:#0d0f22;font-family:var(--display);font-size:.95rem;pointer-events:none}
+#stage.demo::after{content:"▶ ▶";position:absolute;top:12px;right:12px;padding:4px 12px;border-radius:999px;background:rgba(143,216,255,.85);color:#0d0f22;font-family:var(--display);font-size:.95rem;pointer-events:none}
 #helpChip.none{opacity:.45}
 @keyframes throb{to{opacity:.5}}
 #stage{position:relative;flex:1;min-height:0;border-radius:18px;overflow:hidden;
@@ -118,10 +120,9 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 <div class="overlay" id="startScreen">
   <div class="card">
     <h1>صدى<span>ECHO</span></h1>
-    <p>كل جولة تصير صدى يعيد خطواتك. خطّط خطواتك من البداية، لتمشي مع نفسك وتفتحا الأبواب معًا.</p>
     <div class="stats"><div><b id="bestStart">٠</b><span>أبعد غرفة</span></div></div>
     <button class="big" id="go">ابدأ</button>
-    <div class="brand">عبودين قيمز · ABODEN GAMES · v0.3.2</div>
+    <div class="brand">عبودين قيمز · ABODEN GAMES · v0.3.3</div>
   </div>
 </div>
 
@@ -139,7 +140,7 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
   "sounds": { "tick": null, "wait": null, "bump": null, "plate": null, "door": null, "warn": null, "rewind": null, "spawn": null, "win": null, "land": null }
 }
 </script>
-<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+<script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/addons/" } }</script>
 <script>// ===== صدى — pure game logic (no rendering) — v0.2 =====
 // Door kinds:
 //   hold    — open while someone stands on its plate
@@ -511,7 +512,7 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
   root.EchoLogic = { compositions, minimalTasks, DIRS, MOVES, TIMER, rng, step, run, startPos, doorStates, doorAt, generate, verify, roomFor, pad, bfsPath, difficulty, TUTORIAL, fromMap, solveTasks, aloneSolvable };
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
-<script type="module">import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
+<script type="module">import * as THREE from 'three';
 
 const E = window.EchoLogic;
 const $ = id => document.getElementById(id);
@@ -1034,9 +1035,9 @@ function afterTick() {
   if (me.x === S.R.exit.x && me.y === S.R.exit.y) return win();
   if (S.acts.length >= S.R.L) {
     S.walk = [];
-    if (S.echoes.length < S.R.E) { toast('صارت جولتك صدى'); setTimeout(endLoopAsEcho, 350); }
-    else if (S.demo) { console.error('[demo] final loop ended without the exit', S.n); toast('تعذّر العرض'); stopDemo(); }
-    else { S.fails++; toast('حاول مرة أخرى'); setTimeout(retryLoop, 350); if (S.fails >= 2 && S.help > 0) $('hint').classList.add('pulse'); }
+    if (S.echoes.length < S.R.E) { setTimeout(endLoopAsEcho, 350); }
+    else if (S.demo) { console.error('[demo] final loop ended without the exit', S.n); toast('⚠'); stopDemo(); }
+    else { S.fails++; setTimeout(retryLoop, 350); if (S.fails >= 2 && S.help > 0) $('hint').classList.add('pulse'); }
     return;
   }
   pump();
@@ -1118,7 +1119,7 @@ function undo() {
 function hint() {
   if (S.demo) { stopDemo(); return; }
   if (S.busy || S.won || S.rewinding) return;
-  if (S.help <= 0) { toast('لا توجد مساعدات'); return; }
+  if (S.help <= 0) { SFX.bump(); return; }
   const sol = S.R.solution; if (!sol) return;
   const recording = S.echoes.length < sol.echoes.length;
   const seq = recording ? sol.echoes[S.echoes.length] : sol.player;
@@ -1130,7 +1131,7 @@ function hint() {
   feet.instanceMatrix.needsUpdate = true; hintT = 9;
   hintNums = cells.map(c => ({ pos: cellV(c.x, c.y, .38), n: c.t, color: 0xffd38a }));
   refreshNums(); ui();
-  toast(recording ? 'هذه الجولة ستصير صدى: امشِ هكذا' : 'دربك إلى المخرج');
+  
   tone(note(9), 0, .6, 'sine', .08);
 }
 function setPinMode(on) { S.pinMode = on; $('pin').classList.toggle('armed', on); }
@@ -1138,13 +1139,13 @@ function pinPress() {
   if (S.demo) { stopDemo(); return; }
   if (S.busy || S.won || S.rewinding) return;
   if (S.pinMode) { setPinMode(false); return; }
-  if (S.help <= 0) { toast('لا توجد مساعدات'); return; }
-  setPinMode(true); toast('اختر دائرة ليقف عليها صدى ثابت');
+  if (S.help <= 0) { SFX.bump(); return; }
+  setPinMode(true); toast('◎');
 }
 function pinAt(x, y) {
   const plate = S.R.plates.find(p => p.x === x && p.y === y && S.R.doors[p.door].kind !== 'inverse');
   setPinMode(false);
-  if (!plate) { toast('اختر دائرة'); return; }
+  if (!plate) { return; }
   if ((S.R.pinned || []).some(p => p.x === x && p.y === y)) return;
   S.help--; S.helped = true;
   S.R.pinned = (S.R.pinned || []).concat([{ x, y }]);
@@ -1166,7 +1167,7 @@ function win() {
   const hero = S.ents[S.ents.length - 1]; hero.anim = { kind: 'cheer', t: 0, dur: .8 };
   burst(cellV(R.exit.x, R.exit.y, .4));
   const fl = $('flash'); fl.style.transition = 'none'; fl.style.opacity = .25; requestAnimationFrame(() => { fl.style.transition = 'opacity .6s'; fl.style.opacity = 0; });
-  toast((perfect ? 'مثالي ✦' : 'عبرت ✓') + (gift ? '  · +مساعدة' : ''));
+  toast((perfect ? '✦' : '✓') + (gift ? '  +١' : ''));
   S.best = Math.max(S.best, S.n);
   try { localStorage.setItem('sada-best', S.best); } catch (e) { }
   ui();
@@ -1183,7 +1184,7 @@ function win() {
 function startDemo(free) {
   if (S.busy || S.won || S.rewinding || S.demo || !S.R || !S.R.solution) return;
   if (!free && !S.R.tutorial) {
-    if (S.help <= 0) { toast('لا توجد مساعدات'); return; }
+    if (S.help <= 0) { SFX.bump(); return; }
     S.help--; S.helped = true;
   }
   const sol = S.R.solution, L = S.R.L, queue = [];
@@ -1193,18 +1194,18 @@ function startDemo(free) {
   S.echoes = []; S.acts = []; recompute(); spawnEnts(); doorsUpdate(true); updateDots(); ui();
   S.demo = { queue, timer: setInterval(demoStep, 40) };
   stage.classList.add('demo'); $('watch').classList.add('on');
-  toast('شاهد ثم جرّب');
+  
 }
 function demoStep() {
   const d = S.demo; if (!d || d.done || S.busy || S.rewinding || S.acts.length >= S.R.L) return;
-  if (!d.queue.length) { console.error('[demo] solution ran out without reaching the exit', S.n); toast('تعذّر العرض'); stopDemo(); return; }
+  if (!d.queue.length) { console.error('[demo] solution ran out without reaching the exit', S.n); toast('⚠'); stopDemo(); return; }
   const a = d.queue.shift();
-  if (!doAction(a, true)) { console.error('[demo] move rejected', a, 'room', S.n); toast('تعذّر العرض'); stopDemo(); }
+  if (!doAction(a, true)) { console.error('[demo] move rejected', a, 'room', S.n); toast('⚠'); stopDemo(); }
 }
 function demoReached() {
   if (S.demo) S.demo.done = true;
   SFX.win(); burst(cellV(S.R.exit.x, S.R.exit.y, .4));
-  setTimeout(() => { stopDemo(); toast('دورك'); }, 700);
+  setTimeout(() => { stopDemo(); toast('▶'); }, 700);
 }
 function stopDemo() {
   if (!S.demo) return;

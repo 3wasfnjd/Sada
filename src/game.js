@@ -1,4 +1,4 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
+import * as THREE from 'three';
 
 const E = window.EchoLogic;
 const $ = id => document.getElementById(id);
@@ -521,9 +521,9 @@ function afterTick() {
   if (me.x === S.R.exit.x && me.y === S.R.exit.y) return win();
   if (S.acts.length >= S.R.L) {
     S.walk = [];
-    if (S.echoes.length < S.R.E) { toast('صارت جولتك صدى'); setTimeout(endLoopAsEcho, 350); }
-    else if (S.demo) { console.error('[demo] final loop ended without the exit', S.n); toast('تعذّر العرض'); stopDemo(); }
-    else { S.fails++; toast('حاول مرة أخرى'); setTimeout(retryLoop, 350); if (S.fails >= 2 && S.help > 0) $('hint').classList.add('pulse'); }
+    if (S.echoes.length < S.R.E) { setTimeout(endLoopAsEcho, 350); }
+    else if (S.demo) { console.error('[demo] final loop ended without the exit', S.n); toast('⚠'); stopDemo(); }
+    else { S.fails++; setTimeout(retryLoop, 350); if (S.fails >= 2 && S.help > 0) $('hint').classList.add('pulse'); }
     return;
   }
   pump();
@@ -605,7 +605,7 @@ function undo() {
 function hint() {
   if (S.demo) { stopDemo(); return; }
   if (S.busy || S.won || S.rewinding) return;
-  if (S.help <= 0) { toast('لا توجد مساعدات'); return; }
+  if (S.help <= 0) { SFX.bump(); return; }
   const sol = S.R.solution; if (!sol) return;
   const recording = S.echoes.length < sol.echoes.length;
   const seq = recording ? sol.echoes[S.echoes.length] : sol.player;
@@ -617,7 +617,7 @@ function hint() {
   feet.instanceMatrix.needsUpdate = true; hintT = 9;
   hintNums = cells.map(c => ({ pos: cellV(c.x, c.y, .38), n: c.t, color: 0xffd38a }));
   refreshNums(); ui();
-  toast(recording ? 'هذه الجولة ستصير صدى: امشِ هكذا' : 'دربك إلى المخرج');
+  
   tone(note(9), 0, .6, 'sine', .08);
 }
 function setPinMode(on) { S.pinMode = on; $('pin').classList.toggle('armed', on); }
@@ -625,13 +625,13 @@ function pinPress() {
   if (S.demo) { stopDemo(); return; }
   if (S.busy || S.won || S.rewinding) return;
   if (S.pinMode) { setPinMode(false); return; }
-  if (S.help <= 0) { toast('لا توجد مساعدات'); return; }
-  setPinMode(true); toast('اختر دائرة ليقف عليها صدى ثابت');
+  if (S.help <= 0) { SFX.bump(); return; }
+  setPinMode(true); toast('◎');
 }
 function pinAt(x, y) {
   const plate = S.R.plates.find(p => p.x === x && p.y === y && S.R.doors[p.door].kind !== 'inverse');
   setPinMode(false);
-  if (!plate) { toast('اختر دائرة'); return; }
+  if (!plate) { return; }
   if ((S.R.pinned || []).some(p => p.x === x && p.y === y)) return;
   S.help--; S.helped = true;
   S.R.pinned = (S.R.pinned || []).concat([{ x, y }]);
@@ -653,7 +653,7 @@ function win() {
   const hero = S.ents[S.ents.length - 1]; hero.anim = { kind: 'cheer', t: 0, dur: .8 };
   burst(cellV(R.exit.x, R.exit.y, .4));
   const fl = $('flash'); fl.style.transition = 'none'; fl.style.opacity = .25; requestAnimationFrame(() => { fl.style.transition = 'opacity .6s'; fl.style.opacity = 0; });
-  toast((perfect ? 'مثالي ✦' : 'عبرت ✓') + (gift ? '  · +مساعدة' : ''));
+  toast((perfect ? '✦' : '✓') + (gift ? '  +١' : ''));
   S.best = Math.max(S.best, S.n);
   try { localStorage.setItem('sada-best', S.best); } catch (e) { }
   ui();
@@ -670,7 +670,7 @@ function win() {
 function startDemo(free) {
   if (S.busy || S.won || S.rewinding || S.demo || !S.R || !S.R.solution) return;
   if (!free && !S.R.tutorial) {
-    if (S.help <= 0) { toast('لا توجد مساعدات'); return; }
+    if (S.help <= 0) { SFX.bump(); return; }
     S.help--; S.helped = true;
   }
   const sol = S.R.solution, L = S.R.L, queue = [];
@@ -680,18 +680,18 @@ function startDemo(free) {
   S.echoes = []; S.acts = []; recompute(); spawnEnts(); doorsUpdate(true); updateDots(); ui();
   S.demo = { queue, timer: setInterval(demoStep, 40) };
   stage.classList.add('demo'); $('watch').classList.add('on');
-  toast('شاهد ثم جرّب');
+  
 }
 function demoStep() {
   const d = S.demo; if (!d || d.done || S.busy || S.rewinding || S.acts.length >= S.R.L) return;
-  if (!d.queue.length) { console.error('[demo] solution ran out without reaching the exit', S.n); toast('تعذّر العرض'); stopDemo(); return; }
+  if (!d.queue.length) { console.error('[demo] solution ran out without reaching the exit', S.n); toast('⚠'); stopDemo(); return; }
   const a = d.queue.shift();
-  if (!doAction(a, true)) { console.error('[demo] move rejected', a, 'room', S.n); toast('تعذّر العرض'); stopDemo(); }
+  if (!doAction(a, true)) { console.error('[demo] move rejected', a, 'room', S.n); toast('⚠'); stopDemo(); }
 }
 function demoReached() {
   if (S.demo) S.demo.done = true;
   SFX.win(); burst(cellV(S.R.exit.x, S.R.exit.y, .4));
-  setTimeout(() => { stopDemo(); toast('دورك'); }, 700);
+  setTimeout(() => { stopDemo(); toast('▶'); }, 700);
 }
 function stopDemo() {
   if (!S.demo) return;
