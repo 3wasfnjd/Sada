@@ -27,7 +27,9 @@
 
   // positions arrays carry .timers (one per door, 0 for non-timed)
   function withTimers(pos, timers) { pos.timers = timers; return pos; }
-  function plateOn(room, pos, door) { return room.plates.some(p => p.door === door && pos.some(e => e.x === p.x && e.y === p.y)); }
+  function plateOn(room, pos, door) {
+    return room.plates.some(p => p.door === door && (pos.some(e => e.x === p.x && e.y === p.y) || (room.pinned || []).some(e => e.x === p.x && e.y === p.y)));
+  }
 
   function doorStates(room, pos) {
     const timers = pos.timers || [];
@@ -177,23 +179,46 @@
 
   // ---------- generator ----------
   function difficulty(level) {
-    const k = level <= 3 ? 2 : level <= 10 ? 2 + (level % 2) : level <= 20 ? 3 : 3 + (level % 3 === 0 ? 1 : 0);
+    const k = level <= 2 ? 2 : level <= 8 ? 2 + (level % 2) : level <= 18 ? 3 : 3 + (level % 3 === 0 ? 1 : 0);
     return {
       k,
       W: level < 10 ? 5 : 6,
-      deep: Math.min(0.8, 0.15 + level * 0.05),
+      deep: Math.min(0.6, 0.1 + level * 0.04),
       obst: Math.min(0.2, 0.05 + level * 0.01),
       slack: Math.max(1, 2 - Math.floor(level / 8)),
       tall: Math.min(0.6, 0.2 + level * 0.02),
-      pTimed: level < 2 ? 0 : Math.min(0.7, 0.35 + level * 0.03),
-      pRelay: level < 3 ? 0 : 0.9,
-      pPattern: level < 3 ? 0 : 0.45,
-      pInverse: level < 5 ? 0 : Math.min(0.45, 0.2 + level * 0.015),
+      pTimed: level < 2 ? 0 : Math.min(0.6, 0.3 + level * 0.03),
+      pInverse: level < 4 ? 0 : Math.min(0.4, 0.15 + level * 0.015),
+      allowFull: level <= 1 ? 0.3 : 0.12, // chance to keep a room that needs one echo per gate
     };
   }
 
+  // all ways to split n ordered gates into e contiguous groups
+  function compositions(n, e) {
+    const out = [];
+    (function rec(startI, left, acc) {
+      if (left === 1) { out.push(acc.concat([n - startI])); return; }
+      for (let size = 1; size <= n - startI - (left - 1); size++) rec(startI + size, left - 1, acc.concat([size]));
+    })(0, e, []);
+    return out;
+  }
+
+  // fewest echoes that solve the room, by chaining consecutive gates onto one echo
+  function minimalTasks(room) {
+    const gates = room.doors.map((d, i) => i).filter(i => room.doors[i].kind !== 'inverse');
+    for (let e = 1; e <= gates.length; e++) {
+      for (const comp of compositions(gates.length, e)) {
+        const tasks = []; let at = 0;
+        for (const size of comp) { tasks.push(gates.slice(at, at + size)); at += size; }
+        const sol = solveTasks(room, tasks);
+        if (sol) return { tasks, sol };
+      }
+    }
+    return null;
+  }
+
   function generate(level, seed) {
-    for (let attempt = 0; attempt < 300; attempt++) {
+    for (let attempt = 0; attempt < 400; attempt++) {
       const r = rng(seed + attempt * 7919);
       const d = difficulty(level);
       const k = d.k, W = d.W;
@@ -213,13 +238,8 @@
           y++;
         }
       }
-      if (room.doors.every(dd => dd.kind === 'inverse')) continue;
-      // relay pattern: two consecutive timed gates that one well-timed echo can serve
-      let forced = -1;
-      if (k >= 2 && r() < d.pPattern) {
-        const cand = []; for (let i = 0; i < k - 1; i++) if (room.doors[i].kind !== 'inverse' && room.doors[i + 1].kind !== 'inverse') cand.push(i);
-        if (cand.length) { forced = pick(r, cand); room.doors[forced].kind = room.doors[forced + 1].kind = 'timed'; }
-      }
+      const gateCount = room.doors.filter(dd => dd.kind !== 'inverse').length;
+      if (gateCount < 1) continue;
       const cellsOf = i => { const c = []; for (const yy of room.regions[i]) for (let x = 0; x < W; x++) c.push([x, yy]); return c; };
       const near = new Set(); room.doors.forEach(dd => { near.add(dd.x + ',' + (dd.y - 1)); near.add(dd.x + ',' + (dd.y + 1)); });
       for (let i = 0; i <= k; i++) {
@@ -239,13 +259,12 @@
       room.exit = take(topRow.length ? topRow : free(k));
       if (!room.start || !room.exit) continue;
 
-      // plates for gate doors (hold / timed); inverse plates come later
+      // gate plates: mostly on the near side so one echo can walk between them
       let bad = false;
       for (let i = 0; i < k; i++) {
         if (room.doors[i].kind === 'inverse') continue;
         let reg = 0;
         if (i > 0 && r() < d.deep) reg = ri(r, 1, i);
-        // timed plates sit far enough from their door that the player cannot sprint through alone
         const minDist = room.doors[i].kind === 'timed' ? TIMER + 2 : 2;
         const p = take(free(reg).filter(([x, yy]) => Math.abs(x - room.doors[i].x) + Math.abs(yy - room.doors[i].y) >= minDist));
         if (!p) { bad = true; break; }
@@ -253,21 +272,16 @@
       }
       if (bad) continue;
 
-      // tasks: one echo per gate, but consecutive timed gates may share one echo (relay)
-      const tasks = [];
-      for (let i = 0; i < k; i++) {
-        if (room.doors[i].kind === 'inverse') continue;
-        const last = tasks[tasks.length - 1];
-        if (last && room.doors[i].kind === 'timed' && room.doors[last[last.length - 1]].kind === 'timed' && (i === forced + 1 || r() < d.pRelay)) last.push(i);
-        else tasks.push([i]);
-      }
-      let sol = solveTasks(room, tasks);
-      if (!sol) continue;
+      let best = minimalTasks(room);
+      if (!best) continue;
+      // the heart of v0.3: fewer echoes than gates, so echoes must move in sync with you
+      if (best.tasks.length >= gateCount && r() > d.allowFull) continue;
 
-      // inverse plates: put each on a cell an echo walks over (so a past self briefly shuts the door)
+      // inverse plates on cells an echo crosses
       let invOk = true;
       for (let i = 0; i < k; i++) {
         if (room.doors[i].kind !== 'inverse') continue;
+        const sol = best.sol;
         const L0 = Math.max(sol.player.length, ...sol.echoes.map(e => e.length));
         const st = run(room, sol.echoes.map(e => pad(e, L0)), pad(sol.player, L0));
         const crossed = [];
@@ -279,29 +293,24 @@
         const p = crossed.length ? take(crossed) : null;
         if (!p) { invOk = false; break; }
         room.plates.push({ x: p.x, y: p.y, door: i });
-        sol = solveTasks(room, tasks);
-        if (!sol) { invOk = false; break; }
+        const again = solveTasks(room, best.tasks);
+        if (!again) { invOk = false; break; }
+        best = { tasks: best.tasks, sol: again };
       }
       if (!invOk) continue;
 
-      // honest par: can a timed gate be handled by the player himself instead of an echo?
-      let par = tasks.length;
-      for (let j = tasks.length - 1; j >= 0 && par > 1; j--) {
-        if (!tasks[j].every(di => room.doors[di].kind === 'timed')) continue;
-        const fewer = tasks.filter((_, jj) => jj !== j);
-        const s2 = solveTasks(room, fewer, tasks[j]);
-        if (s2) { par--; }
-      }
+      const sol = best.sol;
       const len = Math.max(sol.player.length, ...sol.echoes.map(e => e.length));
       room.L = len + d.slack;
-      room.par = Math.min(par, tasks.length);
-      room.tasks = tasks;
+      room.E = best.tasks.length;
+      room.par = room.E;
+      room.tasks = best.tasks;
       room.solution = sol;
       if (!verify(room)) continue;
       room.seed = seed; room.level = level;
       room.features = {
         timed: room.doors.some(dd => dd.kind === 'timed'),
-        relay: tasks.some(t => t.length > 1),
+        sync: best.tasks.some(t => t.length > 1),
         inverse: room.doors.some(dd => dd.kind === 'inverse'),
       };
       return room;
@@ -312,6 +321,7 @@
   function verify(room, allowAlone) {
     const s = room.solution;
     if (!s || s.player.length > room.L) return false;
+    if (s.echoes.length !== room.E || s.echoes.some(e => e.length > room.L)) return false;
     if (!reaches(room, s.echoes.map(e => pad(e, room.L)), s.player)) return false;
     return allowAlone ? true : !aloneSolvable(room, room.L);
   }
@@ -321,11 +331,11 @@
   // # wall  . floor  S start  E exit
   // a/b/c hold door, A/B/C timed door; 1/2/3 plate for door a|A / b|B / c|C; x/y/z inverse plate (makes that door inverse)
   const TUTORIAL = [
-    { L: 9, map: ['#.E.#', '#...#', '.....', '..#..', '.....', '..S..'] },
-    { L: 9, map: ['..E..', '.....', '##a##', '.....', '1...S'] },
-    { L: 16, map: ['.E...', '.....', '###b#', '.....', '.....', '#a###', '.....', '2..1S'] },
+    { L: 9, map: ['#.E.#', '#...#', '.....', '..#..', '.....', '..S..'], alone: true },
+    { L: 10, map: ['..E..', '.....', '##a##', '.....', '1...S'], tasks: [[0]] },
+    { L: 16, map: ['.E...', '.....', '###b#', '.....', '#a###', '.....', '2..1S'], tasks: [[0, 1]] },
     { L: 12, map: ['..E..', '.....', '##A##', '.....', '1...S'], alone: true },
-    { L: 14, map: ['E....', '.....', '##b##', '.y...', '.....', '#a###', '.....', '1...S'] },
+    { L: 14, map: ['E....', '.....', '##b##', '.y...', '.....', '#a###', '.....', '1...S'], tasks: [[0]] },
   ];
   function fromMap(def, level) {
     const rows = def.map.slice().reverse(); const H = rows.length, W = rows[0].length;
@@ -342,14 +352,10 @@
     doorDefs.sort((a, b) => a.y - b.y);
     doorDefs.forEach(dd => room.doors.push({ x: dd.x, y: dd.y, kind: dd.kind }));
     plateDefs.forEach(p => { const di = doorDefs.findIndex(dd => dd.id === p.id); if (p.inv) room.doors[di].kind = 'inverse'; room.plates.push({ x: p.x, y: p.y, door: di }); });
-    const tasks = room.doors.map((dd, i) => i).filter(i => room.doors[i].kind !== 'inverse').map(i => [i]);
-    if (def.alone) {
-      const gates = tasks.map(t => t[0]);
-      room.solution = solveTasks(room, [], gates); room.par = 0;
-    } else {
-      room.solution = solveTasks(room, tasks); room.par = tasks.length;
-    }
-    room.tasks = tasks;
+    const gates = room.doors.map((dd, i) => i).filter(i => room.doors[i].kind !== 'inverse');
+    if (def.alone) { room.tasks = []; room.solution = solveTasks(room, [], gates); }
+    else { room.tasks = def.tasks; room.solution = solveTasks(room, def.tasks); }
+    room.E = room.par = room.tasks.length;
     return room;
   }
 
@@ -358,5 +364,5 @@
     return generate(n - TUTORIAL.length, (runSeed * 1000003 + n * 7919) >>> 0);
   }
 
-  root.EchoLogic = { DIRS, MOVES, TIMER, rng, step, run, startPos, doorStates, doorAt, generate, verify, roomFor, pad, bfsPath, difficulty, TUTORIAL, fromMap, solveTasks, aloneSolvable };
+  root.EchoLogic = { compositions, minimalTasks, DIRS, MOVES, TIMER, rng, step, run, startPos, doorStates, doorAt, generate, verify, roomFor, pad, bfsPath, difficulty, TUTORIAL, fromMap, solveTasks, aloneSolvable };
 })(typeof window !== 'undefined' ? window : globalThis);

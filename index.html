@@ -25,7 +25,7 @@ header{display:flex;align-items:center;gap:10px;padding-block:10px 4px}
 .sp{flex:1}
 .iconbtn{width:38px;height:38px;border-radius:50%;border:0;background:rgba(255,255,255,.06);color:var(--ink);display:grid;place-items:center;cursor:pointer}
 .iconbtn svg{width:20px;height:20px}
-#sand.low{color:var(--danger);animation:throb .7s infinite alternate}
+#helpChip.none{opacity:.45}
 @keyframes throb{to{opacity:.5}}
 #stage{position:relative;flex:1;min-height:0;border-radius:18px;overflow:hidden;
   background:radial-gradient(120% 80% at 50% 0%,#3a2f6b 0%,#1b1838 55%,#0d0f22 100%)}
@@ -48,13 +48,20 @@ footer{padding-block:8px max(10px,env(safe-area-inset-bottom,0px));display:flex;
 #ticks.warn i:not(.done){background:rgba(255,122,107,.45)}
 #left{font-family:var(--display);font-size:1.4rem;min-width:2ch;text-align:center;font-variant-numeric:tabular-nums}
 #left.warn{color:var(--danger)}
-.bar{display:grid;grid-template-columns:repeat(4,52px) 1fr;gap:8px;align-items:stretch}
+.bar{display:grid;grid-template-columns:repeat(5,minmax(40px,48px)) 1fr;gap:6px;align-items:stretch}
 .bar button{border:0;border-radius:14px;background:rgba(255,255,255,.07);color:var(--ink);cursor:pointer;display:grid;place-items:center;min-height:52px;font:inherit}
 .bar button svg{width:24px;height:24px}
 .bar button:disabled{opacity:.3}
-#echo{background:linear-gradient(135deg,#6fc8ff,#8f7bff);color:#0d0f22;font-family:var(--display);font-size:1.3rem;display:flex;gap:10px;align-items:center;justify-content:center}
-#echo svg{width:26px;height:26px}
-#echo.pulse{animation:pulse 1s infinite}
+#wait{background:linear-gradient(135deg,#6fc8ff,#8f7bff);color:#0d0f22;font-family:var(--display);font-size:1.2rem;display:flex;gap:8px;align-items:center;justify-content:center}
+#wait svg{width:24px;height:24px}
+.bar button.pulse{animation:pulse 1s infinite}
+.bar button.armed{background:#f2b25c;color:#2a1a08}
+.tlw{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
+#doorWin{display:flex;flex-direction:column;gap:2px}
+#doorWin div{display:flex;gap:3px;height:4px;direction:ltr}
+#doorWin i{flex:1;border-radius:2px;background:rgba(255,255,255,.05)}
+#loopChip{font-variant-numeric:tabular-nums}
+#loopChip.final{color:var(--brass)}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(143,216,255,.7)}100%{box-shadow:0 0 0 14px rgba(143,216,255,0)}}
 button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 .overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
@@ -76,15 +83,15 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 #toast{position:absolute;top:14px;left:50%;transform:translate(-50%,-8px);padding:8px 16px;border-radius:999px;
   background:rgba(13,15,34,.75);font-family:var(--display);font-size:1.05rem;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;white-space:nowrap}
 #toast.on{opacity:1;transform:translate(-50%,0)}
-@media (prefers-reduced-motion:reduce){#finger.on,#echo.pulse,#sand.low{animation:none}}
+@media (prefers-reduced-motion:reduce){#finger.on,.bar button.pulse{animation:none}}
 </style>
 
 <div id="app" dir="rtl">
   <header>
     <div class="chip" id="room">غرفة ١</div>
     <div class="sp"></div>
-    <div class="chip" id="echoes" title="الأصداء"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.2"/><path d="M6 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><path d="M3 12a9 9 0 0 1 2-5.6M21 12a9 9 0 0 0-2-5.6" opacity=".55"/></svg><span id="echoN">٠</span></div>
-    <div class="chip" id="sand" title="رمل الساعة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 3h12M6 21h12M7 3c0 5 10 5 10 9s-10 4-10 9M17 3c0 5-10 5-10 9s10 4 10 9"/></svg><span id="sandN">٦</span></div>
+    <div class="chip" id="loopChip" title="الجولة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.2"/><path d="M6 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><path d="M3 12a9 9 0 0 1 2-5.6M21 12a9 9 0 0 0-2-5.6" opacity=".55"/></svg><span id="loopN">١/٢</span></div>
+    <div class="chip" id="helpChip" title="المساعدات"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 1 3.5 10.9c-.6.5-1 1.2-1 2.1H9.5c0-.9-.4-1.6-1-2.1A6 6 0 0 1 12 3z"/></svg><span id="helpN">٢</span></div>
     <button class="iconbtn" id="mute" aria-label="الصوت"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path id="waves" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
   </header>
   <div id="stage">
@@ -93,13 +100,14 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
     <div id="toast"></div>
   </div>
   <footer>
-    <div class="tl"><div id="ticks"></div><div id="left">٠</div></div>
+    <div class="tl"><div class="tlw"><div id="ticks"></div><div id="doorWin"></div></div><div id="left">٠</div></div>
     <div class="bar">
-      <button id="restart" aria-label="أعد الغرفة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
-      <button id="hint" aria-label="تلميح"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 1 3.5 10.9c-.6.5-1 1.2-1 2.1H9.5c0-.9-.4-1.6-1-2.1A6 6 0 0 1 12 3z"/></svg></button>
+      <button id="restart" aria-label="أعد الغرفة من البداية"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+      <button id="back" aria-label="جولة للخلف"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 17 6 12l5-5"/><path d="M18 17l-5-5 5-5"/></svg></button>
       <button id="undo" aria-label="تراجع خطوة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
-      <button id="wait" aria-label="انتظر لحظة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg></button>
-      <button id="echo" aria-label="أطلق صدى"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg>صدى</button>
+      <button id="hint" aria-label="تلميح بالخطوات"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 1 3.5 10.9c-.6.5-1 1.2-1 2.1H9.5c0-.9-.4-1.6-1-2.1A6 6 0 0 1 12 3z"/></svg></button>
+      <button id="pin" aria-label="ثبّت صدى على دائرة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg></button>
+      <button id="wait" aria-label="انتظر خطوة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>انتظر</button>
     </div>
   </footer>
 </div>
@@ -107,10 +115,10 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 <div class="overlay" id="startScreen">
   <div class="card">
     <h1>صدى<span>ECHO</span></h1>
-    <p>كل ما تفعله الآن، ستفعله نسخة منك في الجولة القادمة. استعن بأصدائك لتفتح الأبواب.</p>
+    <p>كل جولة تصير صدى يعيد خطواتك. خطّط خطواتك من البداية، لتمشي مع نفسك وتفتحا الأبواب معًا.</p>
     <div class="stats"><div><b id="bestStart">٠</b><span>أبعد غرفة</span></div></div>
     <button class="big" id="go">ابدأ</button>
-    <div class="brand">عبودين قيمز · ABODEN GAMES · v0.2.0</div>
+    <div class="brand">عبودين قيمز · ABODEN GAMES · v0.3.0</div>
   </div>
 </div>
 <div class="overlay" id="overScreen" hidden>
@@ -151,7 +159,9 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 
   // positions arrays carry .timers (one per door, 0 for non-timed)
   function withTimers(pos, timers) { pos.timers = timers; return pos; }
-  function plateOn(room, pos, door) { return room.plates.some(p => p.door === door && pos.some(e => e.x === p.x && e.y === p.y)); }
+  function plateOn(room, pos, door) {
+    return room.plates.some(p => p.door === door && (pos.some(e => e.x === p.x && e.y === p.y) || (room.pinned || []).some(e => e.x === p.x && e.y === p.y)));
+  }
 
   function doorStates(room, pos) {
     const timers = pos.timers || [];
@@ -301,23 +311,46 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 
   // ---------- generator ----------
   function difficulty(level) {
-    const k = level <= 3 ? 2 : level <= 10 ? 2 + (level % 2) : level <= 20 ? 3 : 3 + (level % 3 === 0 ? 1 : 0);
+    const k = level <= 2 ? 2 : level <= 8 ? 2 + (level % 2) : level <= 18 ? 3 : 3 + (level % 3 === 0 ? 1 : 0);
     return {
       k,
       W: level < 10 ? 5 : 6,
-      deep: Math.min(0.8, 0.15 + level * 0.05),
+      deep: Math.min(0.6, 0.1 + level * 0.04),
       obst: Math.min(0.2, 0.05 + level * 0.01),
       slack: Math.max(1, 2 - Math.floor(level / 8)),
       tall: Math.min(0.6, 0.2 + level * 0.02),
-      pTimed: level < 2 ? 0 : Math.min(0.7, 0.35 + level * 0.03),
-      pRelay: level < 3 ? 0 : 0.9,
-      pPattern: level < 3 ? 0 : 0.45,
-      pInverse: level < 5 ? 0 : Math.min(0.45, 0.2 + level * 0.015),
+      pTimed: level < 2 ? 0 : Math.min(0.6, 0.3 + level * 0.03),
+      pInverse: level < 4 ? 0 : Math.min(0.4, 0.15 + level * 0.015),
+      allowFull: level <= 1 ? 0.3 : 0.12, // chance to keep a room that needs one echo per gate
     };
   }
 
+  // all ways to split n ordered gates into e contiguous groups
+  function compositions(n, e) {
+    const out = [];
+    (function rec(startI, left, acc) {
+      if (left === 1) { out.push(acc.concat([n - startI])); return; }
+      for (let size = 1; size <= n - startI - (left - 1); size++) rec(startI + size, left - 1, acc.concat([size]));
+    })(0, e, []);
+    return out;
+  }
+
+  // fewest echoes that solve the room, by chaining consecutive gates onto one echo
+  function minimalTasks(room) {
+    const gates = room.doors.map((d, i) => i).filter(i => room.doors[i].kind !== 'inverse');
+    for (let e = 1; e <= gates.length; e++) {
+      for (const comp of compositions(gates.length, e)) {
+        const tasks = []; let at = 0;
+        for (const size of comp) { tasks.push(gates.slice(at, at + size)); at += size; }
+        const sol = solveTasks(room, tasks);
+        if (sol) return { tasks, sol };
+      }
+    }
+    return null;
+  }
+
   function generate(level, seed) {
-    for (let attempt = 0; attempt < 300; attempt++) {
+    for (let attempt = 0; attempt < 400; attempt++) {
       const r = rng(seed + attempt * 7919);
       const d = difficulty(level);
       const k = d.k, W = d.W;
@@ -337,13 +370,8 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
           y++;
         }
       }
-      if (room.doors.every(dd => dd.kind === 'inverse')) continue;
-      // relay pattern: two consecutive timed gates that one well-timed echo can serve
-      let forced = -1;
-      if (k >= 2 && r() < d.pPattern) {
-        const cand = []; for (let i = 0; i < k - 1; i++) if (room.doors[i].kind !== 'inverse' && room.doors[i + 1].kind !== 'inverse') cand.push(i);
-        if (cand.length) { forced = pick(r, cand); room.doors[forced].kind = room.doors[forced + 1].kind = 'timed'; }
-      }
+      const gateCount = room.doors.filter(dd => dd.kind !== 'inverse').length;
+      if (gateCount < 1) continue;
       const cellsOf = i => { const c = []; for (const yy of room.regions[i]) for (let x = 0; x < W; x++) c.push([x, yy]); return c; };
       const near = new Set(); room.doors.forEach(dd => { near.add(dd.x + ',' + (dd.y - 1)); near.add(dd.x + ',' + (dd.y + 1)); });
       for (let i = 0; i <= k; i++) {
@@ -363,13 +391,12 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
       room.exit = take(topRow.length ? topRow : free(k));
       if (!room.start || !room.exit) continue;
 
-      // plates for gate doors (hold / timed); inverse plates come later
+      // gate plates: mostly on the near side so one echo can walk between them
       let bad = false;
       for (let i = 0; i < k; i++) {
         if (room.doors[i].kind === 'inverse') continue;
         let reg = 0;
         if (i > 0 && r() < d.deep) reg = ri(r, 1, i);
-        // timed plates sit far enough from their door that the player cannot sprint through alone
         const minDist = room.doors[i].kind === 'timed' ? TIMER + 2 : 2;
         const p = take(free(reg).filter(([x, yy]) => Math.abs(x - room.doors[i].x) + Math.abs(yy - room.doors[i].y) >= minDist));
         if (!p) { bad = true; break; }
@@ -377,21 +404,16 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
       }
       if (bad) continue;
 
-      // tasks: one echo per gate, but consecutive timed gates may share one echo (relay)
-      const tasks = [];
-      for (let i = 0; i < k; i++) {
-        if (room.doors[i].kind === 'inverse') continue;
-        const last = tasks[tasks.length - 1];
-        if (last && room.doors[i].kind === 'timed' && room.doors[last[last.length - 1]].kind === 'timed' && (i === forced + 1 || r() < d.pRelay)) last.push(i);
-        else tasks.push([i]);
-      }
-      let sol = solveTasks(room, tasks);
-      if (!sol) continue;
+      let best = minimalTasks(room);
+      if (!best) continue;
+      // the heart of v0.3: fewer echoes than gates, so echoes must move in sync with you
+      if (best.tasks.length >= gateCount && r() > d.allowFull) continue;
 
-      // inverse plates: put each on a cell an echo walks over (so a past self briefly shuts the door)
+      // inverse plates on cells an echo crosses
       let invOk = true;
       for (let i = 0; i < k; i++) {
         if (room.doors[i].kind !== 'inverse') continue;
+        const sol = best.sol;
         const L0 = Math.max(sol.player.length, ...sol.echoes.map(e => e.length));
         const st = run(room, sol.echoes.map(e => pad(e, L0)), pad(sol.player, L0));
         const crossed = [];
@@ -403,29 +425,24 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
         const p = crossed.length ? take(crossed) : null;
         if (!p) { invOk = false; break; }
         room.plates.push({ x: p.x, y: p.y, door: i });
-        sol = solveTasks(room, tasks);
-        if (!sol) { invOk = false; break; }
+        const again = solveTasks(room, best.tasks);
+        if (!again) { invOk = false; break; }
+        best = { tasks: best.tasks, sol: again };
       }
       if (!invOk) continue;
 
-      // honest par: can a timed gate be handled by the player himself instead of an echo?
-      let par = tasks.length;
-      for (let j = tasks.length - 1; j >= 0 && par > 1; j--) {
-        if (!tasks[j].every(di => room.doors[di].kind === 'timed')) continue;
-        const fewer = tasks.filter((_, jj) => jj !== j);
-        const s2 = solveTasks(room, fewer, tasks[j]);
-        if (s2) { par--; }
-      }
+      const sol = best.sol;
       const len = Math.max(sol.player.length, ...sol.echoes.map(e => e.length));
       room.L = len + d.slack;
-      room.par = Math.min(par, tasks.length);
-      room.tasks = tasks;
+      room.E = best.tasks.length;
+      room.par = room.E;
+      room.tasks = best.tasks;
       room.solution = sol;
       if (!verify(room)) continue;
       room.seed = seed; room.level = level;
       room.features = {
         timed: room.doors.some(dd => dd.kind === 'timed'),
-        relay: tasks.some(t => t.length > 1),
+        sync: best.tasks.some(t => t.length > 1),
         inverse: room.doors.some(dd => dd.kind === 'inverse'),
       };
       return room;
@@ -436,6 +453,7 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
   function verify(room, allowAlone) {
     const s = room.solution;
     if (!s || s.player.length > room.L) return false;
+    if (s.echoes.length !== room.E || s.echoes.some(e => e.length > room.L)) return false;
     if (!reaches(room, s.echoes.map(e => pad(e, room.L)), s.player)) return false;
     return allowAlone ? true : !aloneSolvable(room, room.L);
   }
@@ -445,11 +463,11 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
   // # wall  . floor  S start  E exit
   // a/b/c hold door, A/B/C timed door; 1/2/3 plate for door a|A / b|B / c|C; x/y/z inverse plate (makes that door inverse)
   const TUTORIAL = [
-    { L: 9, map: ['#.E.#', '#...#', '.....', '..#..', '.....', '..S..'] },
-    { L: 9, map: ['..E..', '.....', '##a##', '.....', '1...S'] },
-    { L: 16, map: ['.E...', '.....', '###b#', '.....', '.....', '#a###', '.....', '2..1S'] },
+    { L: 9, map: ['#.E.#', '#...#', '.....', '..#..', '.....', '..S..'], alone: true },
+    { L: 10, map: ['..E..', '.....', '##a##', '.....', '1...S'], tasks: [[0]] },
+    { L: 16, map: ['.E...', '.....', '###b#', '.....', '#a###', '.....', '2..1S'], tasks: [[0, 1]] },
     { L: 12, map: ['..E..', '.....', '##A##', '.....', '1...S'], alone: true },
-    { L: 14, map: ['E....', '.....', '##b##', '.y...', '.....', '#a###', '.....', '1...S'] },
+    { L: 14, map: ['E....', '.....', '##b##', '.y...', '.....', '#a###', '.....', '1...S'], tasks: [[0]] },
   ];
   function fromMap(def, level) {
     const rows = def.map.slice().reverse(); const H = rows.length, W = rows[0].length;
@@ -466,14 +484,10 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
     doorDefs.sort((a, b) => a.y - b.y);
     doorDefs.forEach(dd => room.doors.push({ x: dd.x, y: dd.y, kind: dd.kind }));
     plateDefs.forEach(p => { const di = doorDefs.findIndex(dd => dd.id === p.id); if (p.inv) room.doors[di].kind = 'inverse'; room.plates.push({ x: p.x, y: p.y, door: di }); });
-    const tasks = room.doors.map((dd, i) => i).filter(i => room.doors[i].kind !== 'inverse').map(i => [i]);
-    if (def.alone) {
-      const gates = tasks.map(t => t[0]);
-      room.solution = solveTasks(room, [], gates); room.par = 0;
-    } else {
-      room.solution = solveTasks(room, tasks); room.par = tasks.length;
-    }
-    room.tasks = tasks;
+    const gates = room.doors.map((dd, i) => i).filter(i => room.doors[i].kind !== 'inverse');
+    if (def.alone) { room.tasks = []; room.solution = solveTasks(room, [], gates); }
+    else { room.tasks = def.tasks; room.solution = solveTasks(room, def.tasks); }
+    room.E = room.par = room.tasks.length;
     return room;
   }
 
@@ -482,7 +496,7 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
     return generate(n - TUTORIAL.length, (runSeed * 1000003 + n * 7919) >>> 0);
   }
 
-  root.EchoLogic = { DIRS, MOVES, TIMER, rng, step, run, startPos, doorStates, doorAt, generate, verify, roomFor, pad, bfsPath, difficulty, TUTORIAL, fromMap, solveTasks, aloneSolvable };
+  root.EchoLogic = { compositions, minimalTasks, DIRS, MOVES, TIMER, rng, step, run, startPos, doorStates, doorAt, generate, verify, roomFor, pad, bfsPath, difficulty, TUTORIAL, fromMap, solveTasks, aloneSolvable };
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
 <script type="module">import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
@@ -493,8 +507,7 @@ const AR = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[+d]);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const easeOutBack = k => { const c = 1.70158; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
 const TICK = 165;            // ms per tick
-const MAX_ECHOES = 5;
-const START_SAND = 6, MAX_SAND = 15;
+const START_HELP = 2, MAX_HELP = 5;
 
 // door / plate glyphs: colour + shape (never colour alone)
 const GLYPH = [
@@ -666,7 +679,8 @@ function makeChar(color, ghost) {
 // ---------------- state ----------------
 const S = {
   n: 1, runSeed: 1, R: null, echoes: [], acts: [], states: [],
-  sand: START_SAND, best: 0, busy: false, walk: [], won: false, over: false, rewinding: false,
+  help: START_HELP, solved: 0, perfects: 0, helped: false, fails: 0, pinMode: false, statues: [],
+  best: 0, busy: false, walk: [], won: false, over: false, rewinding: false,
   ents: [], ghosts: [], hero: null, doors: [], plates: [], exitObj: null, firstMove: false, platePressedOnce: false,
 };
 try { S.best = +localStorage.getItem('sada-best') || 0; } catch (e) { }
@@ -831,7 +845,7 @@ const cur = () => S.states[S.acts.length];
 function recompute() { S.states = E.run(S.R, S.echoes, S.acts); }
 
 function startRun() {
-  S.runSeed = (Math.random() * 1e9) >>> 0; S.n = 1; S.sand = START_SAND; S.over = false;
+  S.runSeed = (Math.random() * 1e9) >>> 0; S.n = 1; S.help = START_HELP; S.solved = 0; S.perfects = 0; S.over = false;
   $('overScreen').hidden = true;
   startRoom();
 }
@@ -839,6 +853,7 @@ function startRoom() {
   let R = E.roomFor(S.n, S.runSeed), k = 1;
   while (!R && k < 20) R = E.roomFor(S.n, S.runSeed + k++);
   S.R = R; S.echoes = []; S.acts = []; S.won = false; S.walk = []; S.busy = false; S.platePressedOnce = false;
+  S.helped = false; S.fails = 0; setPinMode(false); S.statues.forEach(st => scene.remove(st.root)); S.statues = []; $('hint').classList.remove('pulse');
   recompute(); buildRoom(); clearEnts(); updateDots(); ui();
   feet.count = 0;
   setTimeout(() => {
@@ -879,11 +894,10 @@ function afterTick() {
   if (me.x === S.R.exit.x && me.y === S.R.exit.y) return win();
   if (S.acts.length >= S.R.L) {
     S.walk = [];
-    if (S.sand > 0) { toast('انتهى الوقت'); setTimeout(() => echo(true), 450); }
-    else gameOver();
+    if (S.echoes.length < S.R.E) { toast('صارت جولتك صدى'); setTimeout(endLoopAsEcho, 350); }
+    else { S.fails++; toast('حاول مرة أخرى'); setTimeout(retryLoop, 350); if (S.fails >= 2 && S.help > 0) $('hint').classList.add('pulse'); }
     return;
   }
-  coach();
   pump();
 }
 function pump() { if (S.walk.length && !S.busy) { const a = S.walk.shift(); if (!doAction(a)) S.walk = []; } }
@@ -900,7 +914,7 @@ function doorsUpdate(silent) {
     }
   });
   S.plates.forEach(p => {
-    const on = pos.some(e => e.x === p.x && e.y === p.y);
+    const on = pos.some(e => e.x === p.x && e.y === p.y) || (S.R.pinned || []).some(e => e.x === p.x && e.y === p.y);
     p.target = on ? 1 : 0;
     if (on && !p.was && !silent) { SFX.plate(p.door, true); buzz(12); ringFX(cellV(p.x, p.y, .1), GLYPH[p.door % GLYPH.length].color); S.platePressedOnce = true; }
     if (!on && p.was && !silent) SFX.plate(p.door, false);
@@ -908,25 +922,36 @@ function doorsUpdate(silent) {
   });
 }
 
-function echo(auto) {
-  if (S.busy || S.won || S.over || S.rewinding) return;
-  if (!S.acts.length) { toast('تحرّك أولًا'); return; }
-  if (S.sand <= 0) { toast('نفد الرمل'); return; }
-  if (S.echoes.length >= MAX_ECHOES) { toast('خمسة أصداء كحد أقصى'); return; }
-  S.walk = [];
-  S.sand--; S.echoes.push(E.pad(S.acts, S.R.L));
-  $('echo').classList.remove('pulse');
+// a finished loop becomes an echo, and the next loop starts
+function endLoopAsEcho() {
+  if (S.won || S.rewinding) return;
+  S.echoes.push(E.pad(S.acts, S.R.L));
   rewindAnim(() => {
     S.acts = []; recompute(); spawnEnts();
     const g = S.ents[S.echoes.length - 1]; g.root.scale.setScalar(.01); g.pop = 0;
     SFX.spawn(); ringFX(cellV(S.R.start.x, S.R.start.y, .1), 0x8fd8ff, 1.6);
     doorsUpdate(true); updateDots(); ui();
   });
-  ui();
+}
+// the final loop failed: replay only this loop, keeping every echo
+function retryLoop() {
+  if (S.won || S.rewinding) return;
+  rewindAnim(() => { S.acts = []; recompute(); spawnEnts(); doorsUpdate(true); updateDots(); ui(); });
+}
+// one loop back: discard the newest echo and record it again
+function backLoop() {
+  if (S.busy || S.won || S.rewinding) return;
+  if (!S.acts.length && !S.echoes.length) return;
+  S.walk = []; setPinMode(false);
+  rewindAnim(() => {
+    if (!S.acts.length && S.echoes.length) S.echoes.pop();
+    S.acts = []; recompute(); spawnEnts(); doorsUpdate(true); updateDots(); ui();
+  });
 }
 function rewindAnim(done) {
   S.rewinding = true; stage.classList.add('rewinding'); SFX.rewind(); buzz([10, 30, 10]);
   const steps = S.acts.length, total = Math.min(900, 140 + steps * 45), t0 = performance.now();
+  if (!steps) { stage.classList.remove('rewinding'); S.rewinding = false; done(); return; }
   const states = S.states;
   (function f() {
     const k = clamp((performance.now() - t0) / total, 0, 1);
@@ -947,44 +972,61 @@ function undo() {
   tone(note(2), 0, .12, 'sine', .06);
 }
 function hint() {
-  if (S.busy || S.won || S.over || S.rewinding) return;
-  if (S.sand <= 1) { toast('الرمل لا يكفي للتلميح'); return; }
+  if (S.busy || S.won || S.rewinding) return;
+  if (S.help <= 0) { toast('لا توجد مساعدات'); return; }
   const sol = S.R.solution; if (!sol) return;
-  const seq = S.echoes.length < sol.echoes.length ? sol.echoes[S.echoes.length] : sol.player;
-  S.sand--; ui();
-  let p = { ...S.R.start }; const cells = [];
-  for (const a of seq) { const d = E.DIRS[a]; if (d[0] || d[1]) { p = { x: p.x + d[0], y: p.y + d[1] }; cells.push(p); } }
+  const recording = S.echoes.length < sol.echoes.length;
+  const seq = recording ? sol.echoes[S.echoes.length] : sol.player;
+  S.help--; S.helped = true; $('hint').classList.remove('pulse');
+  let p = { ...S.R.start }; const cells = []; let t = 0;
+  for (const a of seq) { t++; const d = E.DIRS[a]; if (d[0] || d[1]) { p = { x: p.x + d[0], y: p.y + d[1] }; cells.push({ ...p, t }); } }
   feet.count = Math.min(80, cells.length);
   cells.slice(0, 80).forEach((c, i) => { _v.copy(cellV(c.x, c.y, .03)); _m.compose(_v, _q, _s); feet.setMatrixAt(i, _m); });
-  feet.instanceMatrix.needsUpdate = true; hintT = 6;
-  toast(S.echoes.length < sol.echoes.length ? 'درب الصدى القادم' : 'دربك إلى المخرج');
+  feet.instanceMatrix.needsUpdate = true; hintT = 9;
+  hintNums = cells.map(c => ({ pos: cellV(c.x, c.y, .38), n: c.t, color: 0xffd38a }));
+  refreshNums(); ui();
+  toast(recording ? 'هذه الجولة ستصير صدى: امشِ هكذا' : 'دربك إلى المخرج');
   tone(note(9), 0, .6, 'sine', .08);
+}
+function setPinMode(on) { S.pinMode = on; $('pin').classList.toggle('armed', on); }
+function pinPress() {
+  if (S.busy || S.won || S.rewinding) return;
+  if (S.pinMode) { setPinMode(false); return; }
+  if (S.help <= 0) { toast('لا توجد مساعدات'); return; }
+  setPinMode(true); toast('اختر دائرة ليقف عليها صدى ثابت');
+}
+function pinAt(x, y) {
+  const plate = S.R.plates.find(p => p.x === x && p.y === y && S.R.doors[p.door].kind !== 'inverse');
+  setPinMode(false);
+  if (!plate) { toast('اختر دائرة'); return; }
+  if ((S.R.pinned || []).some(p => p.x === x && p.y === y)) return;
+  S.help--; S.helped = true;
+  S.R.pinned = (S.R.pinned || []).concat([{ x, y }]);
+  const st = makeChar(0xb8a989, false); st.root.position.copy(cellV(x, y)); st.root.scale.setScalar(.01); st.pop = 0; st.statue = true;
+  scene.add(st.root); S.statues.push(st);
+  ringFX(cellV(x, y, .1), 0xffd38a, 1.4); SFX.spawn();
+  recompute(); doorsUpdate(false); updateDots(); ui();
 }
 
 function win() {
-  S.won = true; S.walk = [];
-  const R = S.R, used = S.echoes.length, gain = Math.max(1, R.par + 1 - Math.max(0, used - R.par));
-  S.sand = Math.min(MAX_SAND, S.sand + R.par + 1);
-  const perfect = used <= R.par;
+  S.won = true; S.walk = []; setPinMode(false);
+  const R = S.R, perfect = !S.helped;
+  S.solved++; if (perfect) S.perfects++;
+  const gift = S.solved % 3 === 0 && S.help < MAX_HELP;
+  if (gift) S.help++;
   SFX.win(); buzz([20, 40, 20]);
   const hero = S.ents[S.ents.length - 1]; hero.anim = { kind: 'cheer', t: 0, dur: .8 };
   burst(cellV(R.exit.x, R.exit.y, .4));
   const fl = $('flash'); fl.style.transition = 'none'; fl.style.opacity = .25; requestAnimationFrame(() => { fl.style.transition = 'opacity .6s'; fl.style.opacity = 0; });
-  toast((perfect ? 'مثالي ✦  ' : '') + '+' + AR(R.par + 1) + ' رمل');
+  toast((perfect ? 'مثالي ✦' : 'عبرت ✓') + (gift ? '  · +مساعدة' : ''));
   S.best = Math.max(S.best, S.n);
   try { localStorage.setItem('sada-best', S.best); } catch (e) { }
   ui();
   setTimeout(() => {
     rise.dir = -1; rise.t = 0; rise.dur = .9;
-    S.ents.forEach(e => e.anim = { kind: 'leave', t: 0, dur: .5 });
+    S.ents.concat(S.statues).forEach(e => e.anim = { kind: 'leave', t: 0, dur: .5 });
     setTimeout(() => { S.n++; startRoom(); }, 750);
   }, 1100);
-  void gain;
-}
-function gameOver() {
-  S.over = true; SFX.over();
-  $('overRooms').textContent = AR(S.n - 1); $('overBest').textContent = AR(S.best);
-  setTimeout(() => { $('overScreen').hidden = false; $('again').focus(); }, 700);
 }
 
 // ---------------- FX ----------------
@@ -999,45 +1041,74 @@ function burst(p) {
   const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffd99a, size: .09, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
   scene.add(pts); fx.push({ obj: pts, t: 0, dur: 1.3, kind: 'burst', vel });
 }
+// number labels (echo timing and hint steps)
+const numCache = new Map(), numPool = [], numGroup = new THREE.Group(); scene.add(numGroup);
+let echoNums = [], hintNums = [];
+function numTex(n, color) {
+  const key = n + '|' + color; if (numCache.has(key)) return numCache.get(key);
+  const t = canvasTex(64, (g) => {
+    g.font = '600 40px "Readex Pro", system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineWidth = 9; g.strokeStyle = 'rgba(13,15,34,.85)'; g.strokeText(AR(n), 32, 34);
+    g.fillStyle = '#' + color.toString(16).padStart(6, '0'); g.fillText(AR(n), 32, 34);
+  });
+  numCache.set(key, t); return t;
+}
+function refreshNums() {
+  const list = echoNums.concat(hintT > 0 ? hintNums : []);
+  while (numPool.length < list.length) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false })); sp.scale.set(.34, .34, 1); numGroup.add(sp); numPool.push(sp); }
+  numPool.forEach((sp, i) => { const it = list[i]; sp.visible = !!it; if (it) { const tx = numTex(it.n, it.color); if (sp.material.map !== tx) { sp.material.map = tx; sp.material.needsUpdate = true; } sp.position.copy(it.pos); } });
+}
 function updateDots() {
-  if (!S.R || !S.echoes.length) { dots.count = 0; return; }
+  echoNums = [];
+  if (!S.R) { dots.count = 0; refreshNums(); return; }
   const t = S.acts.length, L = S.R.L;
   const future = E.run(S.R, S.echoes, S.acts.concat(Array(L - t).fill('W')));
+  // predicted door-open windows (assuming you wait), shown under the timeline
+  S.windows = S.R.doors.map((d, i) => future.slice(0, L).map(st => E.doorStates(S.R, st)[i]));
+  if (!S.echoes.length) { dots.count = 0; refreshNums(); return; }
   let k = 0; const c = new THREE.Color();
+
   S.echoes.forEach((_, i) => {
     let prev = future[t][i];
     for (let s = t + 1; s <= L && k < 400; s++) {
       const p = future[s][i]; if (p.x === prev.x && p.y === prev.y) continue; prev = p;
       _v.copy(cellV(p.x, p.y, .02 + i * .002)); _m.compose(_v, _q, _s); dots.setMatrixAt(k, _m);
       c.setHex(ECHO_COLS[i % ECHO_COLS.length]).multiplyScalar(1 - Math.min(.7, (s - t) / (L + 2))); dots.setColorAt(k, c); k++;
+      echoNums.push({ pos: cellV(p.x, p.y, .3 + i * .05), n: s, color: ECHO_COLS[i % ECHO_COLS.length] });
     }
   });
   dots.count = k; dots.instanceMatrix.needsUpdate = true; if (dots.instanceColor) dots.instanceColor.needsUpdate = true;
+  refreshNums();
 }
 
 // ---------------- UI ----------------
 let lastL = -1;
 function ui() {
   const R = S.R; if (!R) return;
-  const tk = $('ticks');
-  if (lastL !== R.L || tk.children.length !== R.L) { tk.innerHTML = ''; for (let i = 0; i < R.L; i++) tk.appendChild(document.createElement('i')); lastL = R.L; }
+  const tk = $('ticks'), dw = $('doorWin');
+  if (lastL !== R.L || tk.children.length !== R.L || dw.children.length !== R.doors.length) {
+    tk.innerHTML = ''; for (let i = 0; i < R.L; i++) tk.appendChild(document.createElement('i'));
+    dw.innerHTML = '';
+    R.doors.forEach(() => { const row = document.createElement('div'); for (let i = 0; i < R.L; i++) row.appendChild(document.createElement('i')); dw.appendChild(row); });
+    lastL = R.L;
+  }
   const t = S.acts.length, left = R.L - t;
   [...tk.children].forEach((el, i) => el.classList.toggle('done', i < t));
   tk.classList.toggle('warn', left <= 3);
+  (S.windows || []).forEach((w, di) => {
+    const row = dw.children[di]; if (!row) return;
+    const col = '#' + GLYPH[di % GLYPH.length].color.toString(16).padStart(6, '0');
+    [...row.children].forEach((el, i) => { el.style.background = w[i] ? col : ''; el.style.opacity = i < t ? .35 : 1; });
+  });
   $('left').textContent = AR(left); $('left').classList.toggle('warn', left <= 3);
-  $('sandN').textContent = AR(S.sand); $('sand').classList.toggle('low', S.sand <= 1);
-  $('echoN').textContent = AR(S.echoes.length);
-  $('echo').disabled = S.sand <= 0 || S.echoes.length >= MAX_ECHOES;
-  $('undo').disabled = !t; $('hint').disabled = S.sand <= 1 || !R.solution;
+  const final = S.echoes.length >= R.E;
+  $('loopN').textContent = AR(S.echoes.length + 1) + '/' + AR(R.E + 1); $('loopChip').classList.toggle('final', final);
+  $('helpN').textContent = AR(S.help); $('helpChip').classList.toggle('none', S.help <= 0);
+  $('undo').disabled = !t; $('back').disabled = !t && !S.echoes.length;
+  $('hint').disabled = S.help <= 0 || !R.solution; $('pin').disabled = S.help <= 0 && !S.pinMode;
 }
 let toastT = null;
 function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 1600); }
-function coach() {
-  // teach the echo button through play: room with a door, plate used, still no echo
-  if (S.R.par > 0 && !S.echoes.length && S.platePressedOnce && S.acts.length >= 2) $('echo').classList.add('pulse');
-  if (S.R.L - S.acts.length <= 2 && S.R.par > S.echoes.length) $('echo').classList.add('pulse');
-}
-
 // ---------------- input ----------------
 const ray = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), ndc = new THREE.Vector2(), hit = new THREE.Vector3();
 let down = null;
@@ -1050,7 +1121,8 @@ renderer.domElement.addEventListener('pointerup', e => {
   ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, camera); if (!ray.ray.intersectPlane(plane, hit)) return;
   const x = Math.round(hit.x + (S.R.W - 1) / 2), y = Math.round(-hit.z + (S.R.H - 1) / 2);
-  if (x < 0 || y < 0 || x >= S.R.W || y >= S.R.H) return;
+  if (x < 0 || y < 0 || x >= S.R.W || y >= S.R.H) { if (S.pinMode) setPinMode(false); return; }
+  if (S.pinMode) { pinAt(x, y); return; }
   const me = cur()[S.echoes.length];
   if (x === me.x && y === me.y) { S.walk = []; doAction('W'); return; }
   const path = E.bfsPath(S.R, me, { x, y }, true); if (!path) { SFX.bump(); return; }
@@ -1064,12 +1136,13 @@ addEventListener('keydown', e => {
   audioInit();
   if (map[k]) { S.walk = []; doAction(map[k]); e.preventDefault(); }
   else if (k === ' ') { S.walk = []; doAction('W'); e.preventDefault(); }
-  else if (k === 'e' || k === 'Enter') echo();
+  else if (k === 'b') backLoop();
+  else if (k === 'h') hint();
   else if (k === 'z' || k === 'Backspace') undo();
   else if (k === 'r') restart();
 });
 $('wait').onclick = () => { audioInit(); S.walk = []; doAction('W'); };
-$('echo').onclick = () => { audioInit(); echo(); };
+$('back').onclick = backLoop; $('pin').onclick = pinPress;
 $('undo').onclick = undo; $('restart').onclick = restart; $('hint').onclick = hint;
 $('mute').onclick = () => { A.muted = !A.muted; if (A.master) A.master.gain.value = A.muted ? 0 : .85; $('waves').style.opacity = A.muted ? .15 : 1; };
 $('go').onclick = () => { audioInit(); $('startScreen').hidden = true; startRun(); };
@@ -1080,7 +1153,7 @@ let last = performance.now(), T = 0;
 function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now; T += dt;
   if (rise) { rise.t += dt; if (rise.t <= rise.dur + .1) applyRise(rise.t); }
-  for (const e of S.ents) {
+  for (const e of S.ents.concat(S.statues)) {
     const a = e.anim;
     if (e.pop !== undefined) { e.pop = Math.min(1, e.pop + dt * 2.5); e.root.scale.setScalar(easeOutBack(e.pop)); if (e.pop >= 1) delete e.pop; }
     let sq = 1;
@@ -1116,7 +1189,7 @@ function frame(now) {
     const x = S.exitObj; x.ring.rotation.z = T * .8; x.beam.material.opacity = .45 + Math.sin(T * 2) * .1;
     const arr = x.motes.geometry.attributes.position; for (let i = 0; i < arr.count; i++) { let y = arr.getY(i) + dt * .5; if (y > 2.6) y = 0; arr.setY(i, y); } arr.needsUpdate = true;
   }
-  if (hintT > 0) { hintT -= dt; feet.material.opacity = Math.min(.85, hintT) * (.6 + Math.sin(T * 6) * .25); if (hintT <= 0) feet.count = 0; }
+  if (hintT > 0) { hintT -= dt; feet.material.opacity = Math.min(.85, hintT) * (.6 + Math.sin(T * 6) * .25); if (hintT <= 0) { feet.count = 0; refreshNums(); } }
   fx = fx.filter(f => {
     f.t += dt; const k = f.t / f.dur;
     if (f.kind === 'ring') { f.obj.scale.setScalar((1 + k * 2.2) * f.s); f.obj.material.opacity = .9 * (1 - k); }

@@ -25,7 +25,7 @@ header{display:flex;align-items:center;gap:10px;padding-block:10px 4px}
 .sp{flex:1}
 .iconbtn{width:38px;height:38px;border-radius:50%;border:0;background:rgba(255,255,255,.06);color:var(--ink);display:grid;place-items:center;cursor:pointer}
 .iconbtn svg{width:20px;height:20px}
-#sand.low{color:var(--danger);animation:throb .7s infinite alternate}
+#helpChip.none{opacity:.45}
 @keyframes throb{to{opacity:.5}}
 #stage{position:relative;flex:1;min-height:0;border-radius:18px;overflow:hidden;
   background:radial-gradient(120% 80% at 50% 0%,#3a2f6b 0%,#1b1838 55%,#0d0f22 100%)}
@@ -48,13 +48,20 @@ footer{padding-block:8px max(10px,env(safe-area-inset-bottom,0px));display:flex;
 #ticks.warn i:not(.done){background:rgba(255,122,107,.45)}
 #left{font-family:var(--display);font-size:1.4rem;min-width:2ch;text-align:center;font-variant-numeric:tabular-nums}
 #left.warn{color:var(--danger)}
-.bar{display:grid;grid-template-columns:repeat(4,52px) 1fr;gap:8px;align-items:stretch}
+.bar{display:grid;grid-template-columns:repeat(5,minmax(40px,48px)) 1fr;gap:6px;align-items:stretch}
 .bar button{border:0;border-radius:14px;background:rgba(255,255,255,.07);color:var(--ink);cursor:pointer;display:grid;place-items:center;min-height:52px;font:inherit}
 .bar button svg{width:24px;height:24px}
 .bar button:disabled{opacity:.3}
-#echo{background:linear-gradient(135deg,#6fc8ff,#8f7bff);color:#0d0f22;font-family:var(--display);font-size:1.3rem;display:flex;gap:10px;align-items:center;justify-content:center}
-#echo svg{width:26px;height:26px}
-#echo.pulse{animation:pulse 1s infinite}
+#wait{background:linear-gradient(135deg,#6fc8ff,#8f7bff);color:#0d0f22;font-family:var(--display);font-size:1.2rem;display:flex;gap:8px;align-items:center;justify-content:center}
+#wait svg{width:24px;height:24px}
+.bar button.pulse{animation:pulse 1s infinite}
+.bar button.armed{background:#f2b25c;color:#2a1a08}
+.tlw{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
+#doorWin{display:flex;flex-direction:column;gap:2px}
+#doorWin div{display:flex;gap:3px;height:4px;direction:ltr}
+#doorWin i{flex:1;border-radius:2px;background:rgba(255,255,255,.05)}
+#loopChip{font-variant-numeric:tabular-nums}
+#loopChip.final{color:var(--brass)}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(143,216,255,.7)}100%{box-shadow:0 0 0 14px rgba(143,216,255,0)}}
 button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 .overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
@@ -76,15 +83,15 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 #toast{position:absolute;top:14px;left:50%;transform:translate(-50%,-8px);padding:8px 16px;border-radius:999px;
   background:rgba(13,15,34,.75);font-family:var(--display);font-size:1.05rem;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;white-space:nowrap}
 #toast.on{opacity:1;transform:translate(-50%,0)}
-@media (prefers-reduced-motion:reduce){#finger.on,#echo.pulse,#sand.low{animation:none}}
+@media (prefers-reduced-motion:reduce){#finger.on,.bar button.pulse{animation:none}}
 </style>
 
 <div id="app" dir="rtl">
   <header>
     <div class="chip" id="room">غرفة ١</div>
     <div class="sp"></div>
-    <div class="chip" id="echoes" title="الأصداء"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.2"/><path d="M6 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><path d="M3 12a9 9 0 0 1 2-5.6M21 12a9 9 0 0 0-2-5.6" opacity=".55"/></svg><span id="echoN">٠</span></div>
-    <div class="chip" id="sand" title="رمل الساعة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 3h12M6 21h12M7 3c0 5 10 5 10 9s-10 4-10 9M17 3c0 5-10 5-10 9s10 4 10 9"/></svg><span id="sandN">٦</span></div>
+    <div class="chip" id="loopChip" title="الجولة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.2"/><path d="M6 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><path d="M3 12a9 9 0 0 1 2-5.6M21 12a9 9 0 0 0-2-5.6" opacity=".55"/></svg><span id="loopN">١/٢</span></div>
+    <div class="chip" id="helpChip" title="المساعدات"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 1 3.5 10.9c-.6.5-1 1.2-1 2.1H9.5c0-.9-.4-1.6-1-2.1A6 6 0 0 1 12 3z"/></svg><span id="helpN">٢</span></div>
     <button class="iconbtn" id="mute" aria-label="الصوت"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path id="waves" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
   </header>
   <div id="stage">
@@ -93,13 +100,14 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
     <div id="toast"></div>
   </div>
   <footer>
-    <div class="tl"><div id="ticks"></div><div id="left">٠</div></div>
+    <div class="tl"><div class="tlw"><div id="ticks"></div><div id="doorWin"></div></div><div id="left">٠</div></div>
     <div class="bar">
-      <button id="restart" aria-label="أعد الغرفة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
-      <button id="hint" aria-label="تلميح"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 1 3.5 10.9c-.6.5-1 1.2-1 2.1H9.5c0-.9-.4-1.6-1-2.1A6 6 0 0 1 12 3z"/></svg></button>
+      <button id="restart" aria-label="أعد الغرفة من البداية"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+      <button id="back" aria-label="جولة للخلف"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 17 6 12l5-5"/><path d="M18 17l-5-5 5-5"/></svg></button>
       <button id="undo" aria-label="تراجع خطوة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
-      <button id="wait" aria-label="انتظر لحظة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg></button>
-      <button id="echo" aria-label="أطلق صدى"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg>صدى</button>
+      <button id="hint" aria-label="تلميح بالخطوات"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 1 3.5 10.9c-.6.5-1 1.2-1 2.1H9.5c0-.9-.4-1.6-1-2.1A6 6 0 0 1 12 3z"/></svg></button>
+      <button id="pin" aria-label="ثبّت صدى على دائرة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg></button>
+      <button id="wait" aria-label="انتظر خطوة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>انتظر</button>
     </div>
   </footer>
 </div>
@@ -107,10 +115,10 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 <div class="overlay" id="startScreen">
   <div class="card">
     <h1>صدى<span>ECHO</span></h1>
-    <p>كل ما تفعله الآن، ستفعله نسخة منك في الجولة القادمة. استعن بأصدائك لتفتح الأبواب.</p>
+    <p>كل جولة تصير صدى يعيد خطواتك. خطّط خطواتك من البداية، لتمشي مع نفسك وتفتحا الأبواب معًا.</p>
     <div class="stats"><div><b id="bestStart">٠</b><span>أبعد غرفة</span></div></div>
     <button class="big" id="go">ابدأ</button>
-    <div class="brand">عبودين قيمز · ABODEN GAMES · v0.2.0</div>
+    <div class="brand">عبودين قيمز · ABODEN GAMES · v0.3.0</div>
   </div>
 </div>
 <div class="overlay" id="overScreen" hidden>

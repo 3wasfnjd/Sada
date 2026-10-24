@@ -6,8 +6,7 @@ const AR = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[+d]);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const easeOutBack = k => { const c = 1.70158; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
 const TICK = 165;            // ms per tick
-const MAX_ECHOES = 5;
-const START_SAND = 6, MAX_SAND = 15;
+const START_HELP = 2, MAX_HELP = 5;
 
 // door / plate glyphs: colour + shape (never colour alone)
 const GLYPH = [
@@ -179,7 +178,8 @@ function makeChar(color, ghost) {
 // ---------------- state ----------------
 const S = {
   n: 1, runSeed: 1, R: null, echoes: [], acts: [], states: [],
-  sand: START_SAND, best: 0, busy: false, walk: [], won: false, over: false, rewinding: false,
+  help: START_HELP, solved: 0, perfects: 0, helped: false, fails: 0, pinMode: false, statues: [],
+  best: 0, busy: false, walk: [], won: false, over: false, rewinding: false,
   ents: [], ghosts: [], hero: null, doors: [], plates: [], exitObj: null, firstMove: false, platePressedOnce: false,
 };
 try { S.best = +localStorage.getItem('sada-best') || 0; } catch (e) { }
@@ -344,7 +344,7 @@ const cur = () => S.states[S.acts.length];
 function recompute() { S.states = E.run(S.R, S.echoes, S.acts); }
 
 function startRun() {
-  S.runSeed = (Math.random() * 1e9) >>> 0; S.n = 1; S.sand = START_SAND; S.over = false;
+  S.runSeed = (Math.random() * 1e9) >>> 0; S.n = 1; S.help = START_HELP; S.solved = 0; S.perfects = 0; S.over = false;
   $('overScreen').hidden = true;
   startRoom();
 }
@@ -352,6 +352,7 @@ function startRoom() {
   let R = E.roomFor(S.n, S.runSeed), k = 1;
   while (!R && k < 20) R = E.roomFor(S.n, S.runSeed + k++);
   S.R = R; S.echoes = []; S.acts = []; S.won = false; S.walk = []; S.busy = false; S.platePressedOnce = false;
+  S.helped = false; S.fails = 0; setPinMode(false); S.statues.forEach(st => scene.remove(st.root)); S.statues = []; $('hint').classList.remove('pulse');
   recompute(); buildRoom(); clearEnts(); updateDots(); ui();
   feet.count = 0;
   setTimeout(() => {
@@ -392,11 +393,10 @@ function afterTick() {
   if (me.x === S.R.exit.x && me.y === S.R.exit.y) return win();
   if (S.acts.length >= S.R.L) {
     S.walk = [];
-    if (S.sand > 0) { toast('انتهى الوقت'); setTimeout(() => echo(true), 450); }
-    else gameOver();
+    if (S.echoes.length < S.R.E) { toast('صارت جولتك صدى'); setTimeout(endLoopAsEcho, 350); }
+    else { S.fails++; toast('حاول مرة أخرى'); setTimeout(retryLoop, 350); if (S.fails >= 2 && S.help > 0) $('hint').classList.add('pulse'); }
     return;
   }
-  coach();
   pump();
 }
 function pump() { if (S.walk.length && !S.busy) { const a = S.walk.shift(); if (!doAction(a)) S.walk = []; } }
@@ -413,7 +413,7 @@ function doorsUpdate(silent) {
     }
   });
   S.plates.forEach(p => {
-    const on = pos.some(e => e.x === p.x && e.y === p.y);
+    const on = pos.some(e => e.x === p.x && e.y === p.y) || (S.R.pinned || []).some(e => e.x === p.x && e.y === p.y);
     p.target = on ? 1 : 0;
     if (on && !p.was && !silent) { SFX.plate(p.door, true); buzz(12); ringFX(cellV(p.x, p.y, .1), GLYPH[p.door % GLYPH.length].color); S.platePressedOnce = true; }
     if (!on && p.was && !silent) SFX.plate(p.door, false);
@@ -421,25 +421,36 @@ function doorsUpdate(silent) {
   });
 }
 
-function echo(auto) {
-  if (S.busy || S.won || S.over || S.rewinding) return;
-  if (!S.acts.length) { toast('تحرّك أولًا'); return; }
-  if (S.sand <= 0) { toast('نفد الرمل'); return; }
-  if (S.echoes.length >= MAX_ECHOES) { toast('خمسة أصداء كحد أقصى'); return; }
-  S.walk = [];
-  S.sand--; S.echoes.push(E.pad(S.acts, S.R.L));
-  $('echo').classList.remove('pulse');
+// a finished loop becomes an echo, and the next loop starts
+function endLoopAsEcho() {
+  if (S.won || S.rewinding) return;
+  S.echoes.push(E.pad(S.acts, S.R.L));
   rewindAnim(() => {
     S.acts = []; recompute(); spawnEnts();
     const g = S.ents[S.echoes.length - 1]; g.root.scale.setScalar(.01); g.pop = 0;
     SFX.spawn(); ringFX(cellV(S.R.start.x, S.R.start.y, .1), 0x8fd8ff, 1.6);
     doorsUpdate(true); updateDots(); ui();
   });
-  ui();
+}
+// the final loop failed: replay only this loop, keeping every echo
+function retryLoop() {
+  if (S.won || S.rewinding) return;
+  rewindAnim(() => { S.acts = []; recompute(); spawnEnts(); doorsUpdate(true); updateDots(); ui(); });
+}
+// one loop back: discard the newest echo and record it again
+function backLoop() {
+  if (S.busy || S.won || S.rewinding) return;
+  if (!S.acts.length && !S.echoes.length) return;
+  S.walk = []; setPinMode(false);
+  rewindAnim(() => {
+    if (!S.acts.length && S.echoes.length) S.echoes.pop();
+    S.acts = []; recompute(); spawnEnts(); doorsUpdate(true); updateDots(); ui();
+  });
 }
 function rewindAnim(done) {
   S.rewinding = true; stage.classList.add('rewinding'); SFX.rewind(); buzz([10, 30, 10]);
   const steps = S.acts.length, total = Math.min(900, 140 + steps * 45), t0 = performance.now();
+  if (!steps) { stage.classList.remove('rewinding'); S.rewinding = false; done(); return; }
   const states = S.states;
   (function f() {
     const k = clamp((performance.now() - t0) / total, 0, 1);
@@ -460,44 +471,61 @@ function undo() {
   tone(note(2), 0, .12, 'sine', .06);
 }
 function hint() {
-  if (S.busy || S.won || S.over || S.rewinding) return;
-  if (S.sand <= 1) { toast('الرمل لا يكفي للتلميح'); return; }
+  if (S.busy || S.won || S.rewinding) return;
+  if (S.help <= 0) { toast('لا توجد مساعدات'); return; }
   const sol = S.R.solution; if (!sol) return;
-  const seq = S.echoes.length < sol.echoes.length ? sol.echoes[S.echoes.length] : sol.player;
-  S.sand--; ui();
-  let p = { ...S.R.start }; const cells = [];
-  for (const a of seq) { const d = E.DIRS[a]; if (d[0] || d[1]) { p = { x: p.x + d[0], y: p.y + d[1] }; cells.push(p); } }
+  const recording = S.echoes.length < sol.echoes.length;
+  const seq = recording ? sol.echoes[S.echoes.length] : sol.player;
+  S.help--; S.helped = true; $('hint').classList.remove('pulse');
+  let p = { ...S.R.start }; const cells = []; let t = 0;
+  for (const a of seq) { t++; const d = E.DIRS[a]; if (d[0] || d[1]) { p = { x: p.x + d[0], y: p.y + d[1] }; cells.push({ ...p, t }); } }
   feet.count = Math.min(80, cells.length);
   cells.slice(0, 80).forEach((c, i) => { _v.copy(cellV(c.x, c.y, .03)); _m.compose(_v, _q, _s); feet.setMatrixAt(i, _m); });
-  feet.instanceMatrix.needsUpdate = true; hintT = 6;
-  toast(S.echoes.length < sol.echoes.length ? 'درب الصدى القادم' : 'دربك إلى المخرج');
+  feet.instanceMatrix.needsUpdate = true; hintT = 9;
+  hintNums = cells.map(c => ({ pos: cellV(c.x, c.y, .38), n: c.t, color: 0xffd38a }));
+  refreshNums(); ui();
+  toast(recording ? 'هذه الجولة ستصير صدى: امشِ هكذا' : 'دربك إلى المخرج');
   tone(note(9), 0, .6, 'sine', .08);
+}
+function setPinMode(on) { S.pinMode = on; $('pin').classList.toggle('armed', on); }
+function pinPress() {
+  if (S.busy || S.won || S.rewinding) return;
+  if (S.pinMode) { setPinMode(false); return; }
+  if (S.help <= 0) { toast('لا توجد مساعدات'); return; }
+  setPinMode(true); toast('اختر دائرة ليقف عليها صدى ثابت');
+}
+function pinAt(x, y) {
+  const plate = S.R.plates.find(p => p.x === x && p.y === y && S.R.doors[p.door].kind !== 'inverse');
+  setPinMode(false);
+  if (!plate) { toast('اختر دائرة'); return; }
+  if ((S.R.pinned || []).some(p => p.x === x && p.y === y)) return;
+  S.help--; S.helped = true;
+  S.R.pinned = (S.R.pinned || []).concat([{ x, y }]);
+  const st = makeChar(0xb8a989, false); st.root.position.copy(cellV(x, y)); st.root.scale.setScalar(.01); st.pop = 0; st.statue = true;
+  scene.add(st.root); S.statues.push(st);
+  ringFX(cellV(x, y, .1), 0xffd38a, 1.4); SFX.spawn();
+  recompute(); doorsUpdate(false); updateDots(); ui();
 }
 
 function win() {
-  S.won = true; S.walk = [];
-  const R = S.R, used = S.echoes.length, gain = Math.max(1, R.par + 1 - Math.max(0, used - R.par));
-  S.sand = Math.min(MAX_SAND, S.sand + R.par + 1);
-  const perfect = used <= R.par;
+  S.won = true; S.walk = []; setPinMode(false);
+  const R = S.R, perfect = !S.helped;
+  S.solved++; if (perfect) S.perfects++;
+  const gift = S.solved % 3 === 0 && S.help < MAX_HELP;
+  if (gift) S.help++;
   SFX.win(); buzz([20, 40, 20]);
   const hero = S.ents[S.ents.length - 1]; hero.anim = { kind: 'cheer', t: 0, dur: .8 };
   burst(cellV(R.exit.x, R.exit.y, .4));
   const fl = $('flash'); fl.style.transition = 'none'; fl.style.opacity = .25; requestAnimationFrame(() => { fl.style.transition = 'opacity .6s'; fl.style.opacity = 0; });
-  toast((perfect ? 'مثالي ✦  ' : '') + '+' + AR(R.par + 1) + ' رمل');
+  toast((perfect ? 'مثالي ✦' : 'عبرت ✓') + (gift ? '  · +مساعدة' : ''));
   S.best = Math.max(S.best, S.n);
   try { localStorage.setItem('sada-best', S.best); } catch (e) { }
   ui();
   setTimeout(() => {
     rise.dir = -1; rise.t = 0; rise.dur = .9;
-    S.ents.forEach(e => e.anim = { kind: 'leave', t: 0, dur: .5 });
+    S.ents.concat(S.statues).forEach(e => e.anim = { kind: 'leave', t: 0, dur: .5 });
     setTimeout(() => { S.n++; startRoom(); }, 750);
   }, 1100);
-  void gain;
-}
-function gameOver() {
-  S.over = true; SFX.over();
-  $('overRooms').textContent = AR(S.n - 1); $('overBest').textContent = AR(S.best);
-  setTimeout(() => { $('overScreen').hidden = false; $('again').focus(); }, 700);
 }
 
 // ---------------- FX ----------------
@@ -512,45 +540,74 @@ function burst(p) {
   const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffd99a, size: .09, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
   scene.add(pts); fx.push({ obj: pts, t: 0, dur: 1.3, kind: 'burst', vel });
 }
+// number labels (echo timing and hint steps)
+const numCache = new Map(), numPool = [], numGroup = new THREE.Group(); scene.add(numGroup);
+let echoNums = [], hintNums = [];
+function numTex(n, color) {
+  const key = n + '|' + color; if (numCache.has(key)) return numCache.get(key);
+  const t = canvasTex(64, (g) => {
+    g.font = '600 40px "Readex Pro", system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineWidth = 9; g.strokeStyle = 'rgba(13,15,34,.85)'; g.strokeText(AR(n), 32, 34);
+    g.fillStyle = '#' + color.toString(16).padStart(6, '0'); g.fillText(AR(n), 32, 34);
+  });
+  numCache.set(key, t); return t;
+}
+function refreshNums() {
+  const list = echoNums.concat(hintT > 0 ? hintNums : []);
+  while (numPool.length < list.length) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false })); sp.scale.set(.34, .34, 1); numGroup.add(sp); numPool.push(sp); }
+  numPool.forEach((sp, i) => { const it = list[i]; sp.visible = !!it; if (it) { const tx = numTex(it.n, it.color); if (sp.material.map !== tx) { sp.material.map = tx; sp.material.needsUpdate = true; } sp.position.copy(it.pos); } });
+}
 function updateDots() {
-  if (!S.R || !S.echoes.length) { dots.count = 0; return; }
+  echoNums = [];
+  if (!S.R) { dots.count = 0; refreshNums(); return; }
   const t = S.acts.length, L = S.R.L;
   const future = E.run(S.R, S.echoes, S.acts.concat(Array(L - t).fill('W')));
+  // predicted door-open windows (assuming you wait), shown under the timeline
+  S.windows = S.R.doors.map((d, i) => future.slice(0, L).map(st => E.doorStates(S.R, st)[i]));
+  if (!S.echoes.length) { dots.count = 0; refreshNums(); return; }
   let k = 0; const c = new THREE.Color();
+
   S.echoes.forEach((_, i) => {
     let prev = future[t][i];
     for (let s = t + 1; s <= L && k < 400; s++) {
       const p = future[s][i]; if (p.x === prev.x && p.y === prev.y) continue; prev = p;
       _v.copy(cellV(p.x, p.y, .02 + i * .002)); _m.compose(_v, _q, _s); dots.setMatrixAt(k, _m);
       c.setHex(ECHO_COLS[i % ECHO_COLS.length]).multiplyScalar(1 - Math.min(.7, (s - t) / (L + 2))); dots.setColorAt(k, c); k++;
+      echoNums.push({ pos: cellV(p.x, p.y, .3 + i * .05), n: s, color: ECHO_COLS[i % ECHO_COLS.length] });
     }
   });
   dots.count = k; dots.instanceMatrix.needsUpdate = true; if (dots.instanceColor) dots.instanceColor.needsUpdate = true;
+  refreshNums();
 }
 
 // ---------------- UI ----------------
 let lastL = -1;
 function ui() {
   const R = S.R; if (!R) return;
-  const tk = $('ticks');
-  if (lastL !== R.L || tk.children.length !== R.L) { tk.innerHTML = ''; for (let i = 0; i < R.L; i++) tk.appendChild(document.createElement('i')); lastL = R.L; }
+  const tk = $('ticks'), dw = $('doorWin');
+  if (lastL !== R.L || tk.children.length !== R.L || dw.children.length !== R.doors.length) {
+    tk.innerHTML = ''; for (let i = 0; i < R.L; i++) tk.appendChild(document.createElement('i'));
+    dw.innerHTML = '';
+    R.doors.forEach(() => { const row = document.createElement('div'); for (let i = 0; i < R.L; i++) row.appendChild(document.createElement('i')); dw.appendChild(row); });
+    lastL = R.L;
+  }
   const t = S.acts.length, left = R.L - t;
   [...tk.children].forEach((el, i) => el.classList.toggle('done', i < t));
   tk.classList.toggle('warn', left <= 3);
+  (S.windows || []).forEach((w, di) => {
+    const row = dw.children[di]; if (!row) return;
+    const col = '#' + GLYPH[di % GLYPH.length].color.toString(16).padStart(6, '0');
+    [...row.children].forEach((el, i) => { el.style.background = w[i] ? col : ''; el.style.opacity = i < t ? .35 : 1; });
+  });
   $('left').textContent = AR(left); $('left').classList.toggle('warn', left <= 3);
-  $('sandN').textContent = AR(S.sand); $('sand').classList.toggle('low', S.sand <= 1);
-  $('echoN').textContent = AR(S.echoes.length);
-  $('echo').disabled = S.sand <= 0 || S.echoes.length >= MAX_ECHOES;
-  $('undo').disabled = !t; $('hint').disabled = S.sand <= 1 || !R.solution;
+  const final = S.echoes.length >= R.E;
+  $('loopN').textContent = AR(S.echoes.length + 1) + '/' + AR(R.E + 1); $('loopChip').classList.toggle('final', final);
+  $('helpN').textContent = AR(S.help); $('helpChip').classList.toggle('none', S.help <= 0);
+  $('undo').disabled = !t; $('back').disabled = !t && !S.echoes.length;
+  $('hint').disabled = S.help <= 0 || !R.solution; $('pin').disabled = S.help <= 0 && !S.pinMode;
 }
 let toastT = null;
 function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 1600); }
-function coach() {
-  // teach the echo button through play: room with a door, plate used, still no echo
-  if (S.R.par > 0 && !S.echoes.length && S.platePressedOnce && S.acts.length >= 2) $('echo').classList.add('pulse');
-  if (S.R.L - S.acts.length <= 2 && S.R.par > S.echoes.length) $('echo').classList.add('pulse');
-}
-
 // ---------------- input ----------------
 const ray = new THREE.Raycaster(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), ndc = new THREE.Vector2(), hit = new THREE.Vector3();
 let down = null;
@@ -563,7 +620,8 @@ renderer.domElement.addEventListener('pointerup', e => {
   ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, camera); if (!ray.ray.intersectPlane(plane, hit)) return;
   const x = Math.round(hit.x + (S.R.W - 1) / 2), y = Math.round(-hit.z + (S.R.H - 1) / 2);
-  if (x < 0 || y < 0 || x >= S.R.W || y >= S.R.H) return;
+  if (x < 0 || y < 0 || x >= S.R.W || y >= S.R.H) { if (S.pinMode) setPinMode(false); return; }
+  if (S.pinMode) { pinAt(x, y); return; }
   const me = cur()[S.echoes.length];
   if (x === me.x && y === me.y) { S.walk = []; doAction('W'); return; }
   const path = E.bfsPath(S.R, me, { x, y }, true); if (!path) { SFX.bump(); return; }
@@ -577,12 +635,13 @@ addEventListener('keydown', e => {
   audioInit();
   if (map[k]) { S.walk = []; doAction(map[k]); e.preventDefault(); }
   else if (k === ' ') { S.walk = []; doAction('W'); e.preventDefault(); }
-  else if (k === 'e' || k === 'Enter') echo();
+  else if (k === 'b') backLoop();
+  else if (k === 'h') hint();
   else if (k === 'z' || k === 'Backspace') undo();
   else if (k === 'r') restart();
 });
 $('wait').onclick = () => { audioInit(); S.walk = []; doAction('W'); };
-$('echo').onclick = () => { audioInit(); echo(); };
+$('back').onclick = backLoop; $('pin').onclick = pinPress;
 $('undo').onclick = undo; $('restart').onclick = restart; $('hint').onclick = hint;
 $('mute').onclick = () => { A.muted = !A.muted; if (A.master) A.master.gain.value = A.muted ? 0 : .85; $('waves').style.opacity = A.muted ? .15 : 1; };
 $('go').onclick = () => { audioInit(); $('startScreen').hidden = true; startRun(); };
@@ -593,7 +652,7 @@ let last = performance.now(), T = 0;
 function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now; T += dt;
   if (rise) { rise.t += dt; if (rise.t <= rise.dur + .1) applyRise(rise.t); }
-  for (const e of S.ents) {
+  for (const e of S.ents.concat(S.statues)) {
     const a = e.anim;
     if (e.pop !== undefined) { e.pop = Math.min(1, e.pop + dt * 2.5); e.root.scale.setScalar(easeOutBack(e.pop)); if (e.pop >= 1) delete e.pop; }
     let sq = 1;
@@ -629,7 +688,7 @@ function frame(now) {
     const x = S.exitObj; x.ring.rotation.z = T * .8; x.beam.material.opacity = .45 + Math.sin(T * 2) * .1;
     const arr = x.motes.geometry.attributes.position; for (let i = 0; i < arr.count; i++) { let y = arr.getY(i) + dt * .5; if (y > 2.6) y = 0; arr.setY(i, y); } arr.needsUpdate = true;
   }
-  if (hintT > 0) { hintT -= dt; feet.material.opacity = Math.min(.85, hintT) * (.6 + Math.sin(T * 6) * .25); if (hintT <= 0) feet.count = 0; }
+  if (hintT > 0) { hintT -= dt; feet.material.opacity = Math.min(.85, hintT) * (.6 + Math.sin(T * 6) * .25); if (hintT <= 0) { feet.count = 0; refreshNums(); } }
   fx = fx.filter(f => {
     f.t += dt; const k = f.t / f.dur;
     if (f.kind === 'ring') { f.obj.scale.setScalar((1 + k * 2.2) * f.s); f.obj.material.opacity = .9 * (1 - k); }
