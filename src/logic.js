@@ -182,7 +182,7 @@
     const k = level <= 2 ? 2 : level <= 8 ? 2 + (level % 2) : level <= 18 ? 3 : 3 + (level % 3 === 0 ? 1 : 0);
     return {
       k,
-      W: level < 10 ? 5 : 6,
+      W: level <= 3 ? 4 : level < 10 ? 5 : 6,
       deep: Math.min(0.6, 0.1 + level * 0.04),
       obst: Math.min(0.2, 0.05 + level * 0.01),
       slack: Math.max(1, 2 - Math.floor(level / 8)),
@@ -330,12 +330,13 @@
   // hand-made opening rooms (rows listed top -> bottom)
   // # wall  . floor  S start  E exit
   // a/b/c hold door, A/B/C timed door; 1/2/3 plate for door a|A / b|B / c|C; x/y/z inverse plate (makes that door inverse)
+  // short demonstration rooms; L is computed from the solution (+1 spare tick)
   const TUTORIAL = [
-    { L: 9, map: ['#.E.#', '#...#', '.....', '..#..', '.....', '..S..'], alone: true },
-    { L: 10, map: ['..E..', '.....', '##a##', '.....', '1...S'], tasks: [[0]] },
-    { L: 16, map: ['.E...', '.....', '###b#', '.....', '#a###', '.....', '2..1S'], tasks: [[0, 1]] },
-    { L: 12, map: ['..E..', '.....', '##A##', '.....', '1...S'], alone: true },
-    { L: 14, map: ['E....', '.....', '##b##', '.y...', '.....', '#a###', '.....', '1...S'], tasks: [[0]] },
+    { map: ['.E.', '...', '.S.'], alone: true },
+    { map: ['.E.', '#a#', '1.S'], tasks: [[0]] },
+    { map: ['E..', '#b#', '...', '#a#', '21S'], tasks: [[0, 1]] },
+    { map: ['.E.', '#A#', '...', '1.S'], alone: true },
+    { map: ['E..', '#b#', 'y..', '#a#', '1.S'], tasks: [[0]] },
   ];
   function fromMap(def, level) {
     const rows = def.map.slice().reverse(); const H = rows.length, W = rows[0].length;
@@ -356,6 +357,7 @@
     if (def.alone) { room.tasks = []; room.solution = solveTasks(room, [], gates); }
     else { room.tasks = def.tasks; room.solution = solveTasks(room, def.tasks); }
     room.E = room.par = room.tasks.length;
+    if (!def.L && room.solution) room.L = Math.max(room.solution.player.length, ...room.solution.echoes.map(e => e.length)) + 1;
     return room;
   }
 

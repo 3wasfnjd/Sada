@@ -288,7 +288,7 @@ function makeModelChar(color, ghost) {
 // ---------------- state ----------------
 const S = {
   n: 1, runSeed: 1, R: null, echoes: [], acts: [], states: [],
-  help: START_HELP, solved: 0, perfects: 0, helped: false, fails: 0, pinMode: false, statues: [],
+  help: START_HELP, solved: 0, perfects: 0, helped: false, fails: 0, pinMode: false, statues: [], demo: null, demoSeen: {},
   best: 0, busy: false, walk: [], won: false, over: false, rewinding: false,
   ents: [], ghosts: [], hero: null, doors: [], plates: [], exitObj: null, firstMove: false, platePressedOnce: false,
 };
@@ -479,11 +479,13 @@ function startRoom() {
     setTimeout(() => SFX.land(), 380);
     doorsUpdate(true);
     if (S.n === 1 && !S.firstMove) $('finger').classList.add('on');
+    if (S.R.tutorial && S.n > 1 && !S.demoSeen[S.n]) { S.demoSeen[S.n] = true; setTimeout(() => startDemo(true), 700); }
   }, Math.min(900, rise.dur * 1000 - 200));
   $('room').textContent = 'غرفة ' + AR(S.n);
 }
 
-function doAction(a) {
+function doAction(a, fromDemo) {
+  if (S.demo && !fromDemo) { stopDemo(); return false; }
   if (S.busy || S.won || S.over || S.rewinding || !S.ents.length) return false;
   if (S.acts.length >= S.R.L) return false;
   const t = S.acts.length, pos = cur();
@@ -512,6 +514,7 @@ function afterTick() {
   if (S.acts.length >= S.R.L) {
     S.walk = [];
     if (S.echoes.length < S.R.E) { toast('صارت جولتك صدى'); setTimeout(endLoopAsEcho, 350); }
+    else if (S.demo) { console.error('[demo] final loop ended without the exit', S.n); toast('تعذّر العرض'); stopDemo(); }
     else { S.fails++; toast('حاول مرة أخرى'); setTimeout(retryLoop, 350); if (S.fails >= 2 && S.help > 0) $('hint').classList.add('pulse'); }
     return;
   }
@@ -557,6 +560,7 @@ function retryLoop() {
 }
 // one loop back: discard the newest echo and record it again
 function backLoop() {
+  if (S.demo) { stopDemo(); return; }
   if (S.busy || S.won || S.rewinding) return;
   if (!S.acts.length && !S.echoes.length) return;
   S.walk = []; setPinMode(false);
@@ -580,15 +584,18 @@ function rewindAnim(done) {
   })();
 }
 function restart() {
+  if (S.demo) { stopDemo(); return; }
   if (S.busy || S.won || S.over || S.rewinding) return;
   S.echoes = []; S.acts = []; S.walk = []; recompute(); spawnEnts(); doorsUpdate(true); updateDots(); ui();
 }
 function undo() {
+  if (S.demo) { stopDemo(); return; }
   if (S.busy || S.won || S.over || S.rewinding || !S.acts.length) return;
   S.walk = []; S.acts.pop(); S.states.pop(); snapAll(cur()); doorsUpdate(true); updateDots(); ui();
   tone(note(2), 0, .12, 'sine', .06);
 }
 function hint() {
+  if (S.demo) { stopDemo(); return; }
   if (S.busy || S.won || S.rewinding) return;
   if (S.help <= 0) { toast('لا توجد مساعدات'); return; }
   const sol = S.R.solution; if (!sol) return;
@@ -607,6 +614,7 @@ function hint() {
 }
 function setPinMode(on) { S.pinMode = on; $('pin').classList.toggle('armed', on); }
 function pinPress() {
+  if (S.demo) { stopDemo(); return; }
   if (S.busy || S.won || S.rewinding) return;
   if (S.pinMode) { setPinMode(false); return; }
   if (S.help <= 0) { toast('لا توجد مساعدات'); return; }
@@ -627,6 +635,7 @@ function pinAt(x, y) {
 }
 
 function win() {
+  if (S.demo) return demoReached();
   S.won = true; S.walk = []; setPinMode(false);
   const R = S.R, perfect = !S.helped;
   S.solved++; if (perfect) S.perfects++;
@@ -645,6 +654,44 @@ function win() {
     S.ents.concat(S.statues).forEach(e => e.anim = { kind: 'leave', t: 0, dur: .5 });
     setTimeout(() => { S.n++; startRoom(); }, 750);
   }, 1100);
+}
+
+// ---------------- watch the solution ----------------
+// Plays the room's stored solution through the real game flow (loops, echoes, doors),
+// so it is both a lesson for the player and a live check of the UI path.
+function startDemo(free) {
+  if (S.busy || S.won || S.rewinding || S.demo || !S.R || !S.R.solution) return;
+  if (!free && !S.R.tutorial) {
+    if (S.help <= 0) { toast('لا توجد مساعدات'); return; }
+    S.help--; S.helped = true;
+  }
+  const sol = S.R.solution, L = S.R.L, queue = [];
+  sol.echoes.forEach(e => queue.push(...E.pad(e, L)));
+  queue.push(...sol.player);
+  S.walk = []; setPinMode(false);
+  S.echoes = []; S.acts = []; recompute(); spawnEnts(); doorsUpdate(true); updateDots(); ui();
+  S.demo = { queue, timer: setInterval(demoStep, 40) };
+  stage.classList.add('demo'); $('watch').classList.add('on');
+  toast('شاهد ثم جرّب');
+}
+function demoStep() {
+  const d = S.demo; if (!d || d.done || S.busy || S.rewinding || S.acts.length >= S.R.L) return;
+  if (!d.queue.length) { console.error('[demo] solution ran out without reaching the exit', S.n); toast('تعذّر العرض'); stopDemo(); return; }
+  const a = d.queue.shift();
+  if (!doAction(a, true)) { console.error('[demo] move rejected', a, 'room', S.n); toast('تعذّر العرض'); stopDemo(); }
+}
+function demoReached() {
+  if (S.demo) S.demo.done = true;
+  SFX.win(); burst(cellV(S.R.exit.x, S.R.exit.y, .4));
+  setTimeout(() => { stopDemo(); toast('دورك'); }, 700);
+}
+function stopDemo() {
+  if (!S.demo) return;
+  clearInterval(S.demo.timer); S.demo = null;
+  stage.classList.remove('demo'); $('watch').classList.remove('on');
+  S.busy = false; S.walk = [];
+  const reset = () => { S.echoes = []; S.acts = []; recompute(); spawnEnts(); doorsUpdate(true); updateDots(); ui(); };
+  if (S.rewinding) setTimeout(reset, 950); else reset();
 }
 
 // ---------------- FX ----------------
@@ -761,6 +808,7 @@ addEventListener('keydown', e => {
 });
 $('wait').onclick = () => { audioInit(); S.walk = []; doAction('W'); };
 $('back').onclick = backLoop; $('pin').onclick = pinPress;
+$('watch').onclick = () => { audioInit(); if (S.demo) stopDemo(); else startDemo(false); };
 $('undo').onclick = undo; $('restart').onclick = restart; $('hint').onclick = hint;
 $('mute').onclick = () => { A.muted = !A.muted; if (A.master) A.master.gain.value = A.muted ? 0 : .85; $('waves').style.opacity = A.muted ? .15 : 1; };
 $('go').onclick = async () => { audioInit(); $('go').disabled = true; await assetsReady; $('go').disabled = false; $('startScreen').hidden = true; startRun(); };
