@@ -130,5 +130,19 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
   </div>
 </div>
 
+<!-- Swappable assets: fill a slot to replace the built-in look (see docs/ASSETS.md). Empty = procedural. -->
+<script type="application/json" id="asset-manifest">
+{
+  "floor": null,
+  "wall": null,
+  "door": null,
+  "plate": null,
+  "exit": null,
+  "hero": null,
+  "textures": { "tile": null, "wall": null, "glow": null, "beam": null },
+  "sounds": { "tick": null, "wait": null, "bump": null, "plate": null, "door": null, "warn": null, "rewind": null, "spawn": null, "win": null, "land": null }
+}
+</script>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
 <script>/*LOGIC*/</script>
 <script type="module">/*GAME*/</script>
