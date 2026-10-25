@@ -211,32 +211,35 @@ hp('torus', 'hips', 'leather_d', (0, 0, .245), (1, .85, 1), R=.115, r=.022)     
 hp('cube', 'hips', 'gold', (0, -.105, .245), (.05, .02, .05), rot=(0, math.pi / 4, 0), bevel=.006)    # buckle (diamond)
 hp('cube', 'hips', 'leather', (.1, -.06, .215), (.06, .045, .065), bevel=.012)                         # pouch
 hp('torus', 'chest', 'red', (0, 0, .425), (1, .9, .8), R=.105, r=.05)                                  # scarf ring
-hp('cube', 'scarf', 'red', (-.06, .13, .36), (.07, .02, .18), rot=(.3, 0, .2), bevel=.006)             # scarf tails
-hp('cube', 'scarf', 'red', (.05, .14, .33), (.07, .02, .22), rot=(.35, 0, -.25), bevel=.006)
-hp('cube', 'scarf', 'gold', (.05, .155, .25), (.035, .01, .035), rot=(.35, math.pi / 4, -.25))
+for i, (x, y, z, rz, rx) in enumerate(((-.17, .02, .38, .9, .2), (-.3, .05, .33, 1.15, .3))):  # tails flowing to the left
+    hp('cube', 'scarf', 'red', (x, y, z), (.2 - i * .02, .025, .075), rot=(rx, -.35, rz - math.pi / 2 + 1.0), bevel=.008)
+hp('cube', 'scarf', 'gold', (-.34, .02, .31), (.04, .012, .04), rot=(.3, math.pi / 4, .5))
 # head
 hp('sphere', 'head', 'skin', (0, 0, .64), (1, .93, .95), seg=28, rings=16, r=.205)
 for s in (-1, 1): hp('sphere', 'head', 'skin', (s * .2, .01, .63), (.5, .8, 1), r=.04)                # ears
-for s in (-1, 1):                                                                                       # big eyes
-    hp('sphere', 'head', 'white', (s * .072, -.165, .62), (.85, .45, 1.15), r=.045)
-    hp('sphere', 'head', 'iris', (s * .072, -.182, .615), (.85, .4, 1.1), r=.034)
-    hp('sphere', 'head', 'ink', (s * .072, -.191, .612), (.8, .4, 1.05), r=.018)
-    hp('sphere', 'head', 'white', (s * .072 + s * -.012, -.198, .63), (1, .5, 1), r=.008)
-    hp('cube', 'head', 'brow', (s * .075, -.168, .688), (.07, .02, .018), rot=(0, s * -.25, 0), bevel=.006)  # brows
-hp('sphere', 'head', 'ink', (0, -.188, .545), (1, .4, .35), r=.02)                                     # small smile
+for s in (-1, 1):                                                                                       # big eyes (ref: large brown eyes)
+    hp('sphere', 'head', 'white', (s * .075, -.158, .615), (.9, .42, 1.25), r=.058)
+    hp('sphere', 'head', 'iris', (s * .073, -.178, .607), (.88, .38, 1.2), r=.046)
+    hp('sphere', 'head', 'ink', (s * .073, -.19, .604), (.8, .35, 1.1), r=.024)
+    hp('sphere', 'head', 'white', (s * .073 - s * .016, -.198, .632), (1, .5, 1), r=.011)
+    hp('sphere', 'head', 'white', (s * .073 + s * .012, -.197, .588), (1, .5, 1), r=.006)
+    hp('cube', 'head', 'brow', (s * .078, -.17, .695), (.075, .022, .02), rot=(0, s * -.22, 0), bevel=.007)  # thick brows
+hp('torus', 'head', 'ink', (0, -.183, .552), (1, .6, .55), rot=(math.radians(80), 0, 0), R=.025, r=.006, seg=16)  # smile
 hp('sphere', 'head', 'skin', (0, -.2, .585), (1, .8, .8), r=.014)                                     # nose
 # hair: cap over top/back + spikes + front bangs (ref: brown spiky hair)
-hp('sphere', 'head', 'hair', (0, .025, .675), (1.06, 1.05, .9), seg=24, rings=14, r=.215)
+hp('sphere', 'head', 'hair', (0, .05, .7), (1.07, 1.05, .92), seg=24, rings=14, r=.215)
 rng = random.Random(21)
-for k in range(16):
-    a = k / 16 * math.tau; el = rng.uniform(.25, .95)
-    d = Vector((math.sin(a) * math.cos(el), math.cos(a) * math.cos(el) * .9 + .25, math.sin(el))).normalized()
-    if d.y < -.2 and el < .5: continue                         # keep the face clear
-    base = Vector((0, .02, .68)) + d * .17
+for k in range(22):                                            # big swept spikes over top and back
+    a = rng.uniform(-math.pi * .85, math.pi * .85); el = rng.uniform(.35, 1.2)
+    d = Vector((math.sin(a) * math.cos(el), math.cos(a) * math.cos(el), math.sin(el))).normalized()
+    d = (d + Vector((0, .35, .25))).normalized()               # sweep up and back
+    base = Vector((0, .04, .7)) + d * .15
     q = d.to_track_quat('Z', 'Y').to_euler()
-    hp('cone', 'head', 'hair', tuple(base + d * .06), rot=tuple(q), r1=.06, d=.15, seg=6)
-for k, x in enumerate((-.11, -.04, .04, .11)):                 # bangs falling over the forehead
-    hp('cone', 'head', 'hair', (x, -.15, .74), rot=(math.radians(200), 0, x * 2), r1=.05, d=.13, seg=6)
+    hp('cone', 'head', 'hair', tuple(base + d * .07), rot=tuple(q), r1=.075, d=.2, seg=6)
+for k, (x, tilt) in enumerate(((-.13, .5), (-.06, .2), (.02, -.1), (.1, -.4))):   # bangs over the headband
+    hp('cone', 'head', 'hair', (x, -.16, .79), rot=(math.radians(150), 0, tilt), r1=.06, d=.17, seg=6)
+for sx in (-1, 1):                                             # side locks over the ears
+    hp('cone', 'head', 'hair', (sx * .19, -.04, .66), rot=(math.radians(170), sx * .3, 0), r1=.05, d=.16, seg=6)
 hp('torus', 'head', 'gold', (0, .005, .705), (1.02, .97, 1), rot=(-.12, 0, 0), R=.208, r=.018, seg=32)  # headband
 hp('ico', 'head', 'gem', (0, -.215, .71), (.6, .35, .75), rot=(0, math.pi / 4, 0), sub=1, r=.05)     # diamond gem
 hp('cube', 'head', 'gold', (0, -.205, .71), (.075, .015, .075), rot=(0, math.pi / 4, 0), bevel=.005)
@@ -253,7 +256,7 @@ bone('root', (0, 0, 0), (0, 0, .08)); bone('hips', (0, 0, .08), (0, 0, .26), 'ro
 bone('chest', (0, 0, .26), (0, 0, .43), 'hips'); bone('head', (0, 0, .43), (0, 0, .9), 'chest')
 bone('arm.L', (-.15, 0, .39), (-.19, 0, .2), 'chest'); bone('arm.R', (.15, 0, .39), (.19, 0, .2), 'chest')
 bone('leg.L', (-.07, 0, .2), (-.07, 0, .02), 'hips'); bone('leg.R', (.07, 0, .2), (.07, 0, .02), 'hips')
-bone('scarf', (0, .12, .43), (0, .17, .25), 'chest')
+bone('scarf', (-.08, 0, .42), (-.3, .05, .33), 'chest')
 bpy.ops.object.mode_set(mode='OBJECT')
 body.parent = arm; body.modifiers.new('rig', 'ARMATURE').object = arm
 
@@ -323,7 +326,7 @@ def look(target, dist, elev, azim):
 def render(name):
     scene.render.filepath = os.path.join(PREV, name + '.png'); bpy.ops.render.render(write_still=True); print('[assets] preview', name)
 def place(o, x, y, rz=0):
-    c = o.copy(); c.data = o.data; scene.collection.objects.link(c); c.location = (x, y, 0); c.rotation_euler = (0, 0, rz); return c
+    c = o.copy(); c.data = o.data; scene.collection.objects.link(c); c.location = (x, y, 0); c.rotation_euler = (0, 0, rz); c.hide_render = False; return c
 
 # 1) asset line-up like the environment sheet
 ORIG = [floor, wall, door, door_frame, plate, exitd]
