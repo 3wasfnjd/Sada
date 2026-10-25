@@ -344,6 +344,7 @@ func walk_to(c: Vector2i) -> void:
 # ---------------- input ----------------
 
 func _process(dt: float) -> void:
+	board.viewer = cam.global_position
 	if xr_on:
 		if not placed:
 			_place_frames += 1

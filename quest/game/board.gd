@@ -22,7 +22,9 @@ var ticks_node: Node3D
 var ticks := []
 var echo_slots := []
 var _cache := {}
-var _gnome: PackedScene = preload("res://assets/gnome.glb")
+# the Quest build uses the sharper gnome (16k triangles, 2048 textures) when it is present
+var _gnome: PackedScene = load("res://assets/gnome_quest.glb") if ResourceLoader.exists("res://assets/gnome_quest.glb") else load("res://assets/gnome.glb")
+var viewer := Vector3(0, 10, 10)   # the player's head in world space (set by main), for the idle glance
 var _ghost_mats := []
 var _statue: StandardMaterial3D
 
@@ -210,10 +212,7 @@ func build(room: Dictionary) -> void:
 		var emb := _emblem(g, d.kind == "inverse")
 		emb.position = cell(d.x, d.y, 2.2)
 		room_node.add_child(emb)
-		var halo := _halo(GLYPH[g], 0.9, true)
-		halo.position = cell(d.x, d.y, 2.2) + Vector3(0, 0, -0.05)
-		room_node.add_child(halo)
-		doors.append({"panel": panel, "open": 0.0, "target": 0.0, "mark": mark, "emb": emb, "halo": halo, "lit": 0.0, "flash": 0.0, "col": GLYPH[g]})
+		doors.append({"panel": panel, "open": 0.0, "target": 0.0, "mark": mark, "emb": emb, "lit": 0.0, "flash": 0.0, "col": GLYPH[g]})
 	for p in R.plates:
 		var g: int = p.door % 4
 		var n := _piece(COLOURS[g] + "Plate")
@@ -223,8 +222,8 @@ func build(room: Dictionary) -> void:
 			var ring := _ring(GLYPH[g])
 			ring.position = cell(p.x, p.y, 0.12)
 			room_node.add_child(ring)
-		var ph := _halo(GLYPH[g], 0.95, false)
-		ph.position = cell(p.x, p.y, 0.13)
+		var ph := _floor_ring(GLYPH[g], 0.4)
+		ph.position = cell(p.x, p.y, 0.11)
 		room_node.add_child(ph)
 		plates.append({"node": n, "on": 0.0, "target": 0.0, "halo": ph, "col": GLYPH[g]})
 	exit_node = _piece("ExitRing")
@@ -293,7 +292,48 @@ func _emblem(g: int, inverse: bool) -> Node3D:
 	m.basis = Basis(Vector3.RIGHT, PI / 2) * Basis(Vector3.UP, [0.0, 0.0, PI / 4, 0.0][g])
 	m.material_override = _glow(GLYPH[g])
 	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# the glow hugs the tube: the same shape, a little thicker and see-through (child 1)
+	holder.add_child(_tube_glow(t, m.basis, GLYPH[g]))
 	return holder
+
+
+## a neon tube's glow: a thicker, transparent copy of the same torus, so the light stays on the
+## element itself instead of a haze around it
+func _tube_glow(core: TorusMesh, b: Basis, c: Color) -> MeshInstance3D:
+	var t := TorusMesh.new()
+	t.rings = core.rings; t.ring_segments = 8
+	var w := core.outer_radius - core.inner_radius
+	t.outer_radius = core.outer_radius + w * 0.9
+	t.inner_radius = maxf(0.0, core.inner_radius - w * 0.9)
+	var m := MeshInstance3D.new()
+	m.mesh = t
+	m.basis = b
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	mat.albedo_color = Color(c.r, c.g, c.b, 0.25)
+	m.material_override = mat
+	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return m
+
+
+## flat neon ring lying on the floor (plates, exit base)
+func _floor_ring(c: Color, r: float) -> Node3D:
+	var holder := Node3D.new()
+	var t := TorusMesh.new(); t.rings = 48; t.ring_segments = 8
+	t.outer_radius = r; t.inner_radius = r - 0.035
+	var m := MeshInstance3D.new(); m.mesh = t
+	m.material_override = _glow(c)
+	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	holder.add_child(m)
+	holder.add_child(_tube_glow(t, Basis(), c))
+	return holder
+
+
+func _set_neon(holder: Node3D, c: Color, k: float) -> void:
+	((holder.get_child(0) as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = c * clampf(0.45 + k * 0.55, 0.0, 1.0)
+	((holder.get_child(1) as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = Color(c.r, c.g, c.b, clampf(0.08 + k * 0.22, 0.0, 0.35))
 
 
 ## soft additive glow (a radial gradient on a quad): the neon "bloom" without post-processing
@@ -330,10 +370,7 @@ func _exit_fx() -> void:
 	((ring.get_child(0) as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = EXIT_COL
 	ring.position = at + Vector3(0, 1.3, 0)
 	room_node.add_child(ring)
-	var halo := _halo(EXIT_COL, 1.3, true)
-	halo.position = at + Vector3(0, 1.3, 0)
-	room_node.add_child(halo)
-	var base := _halo(EXIT_COL, 1.3, false)
+	var base := _floor_ring(EXIT_COL, 0.55)
 	base.position = at + Vector3(0, 0.05, 0)
 	room_node.add_child(base)
 	var sp := CPUParticles3D.new()
@@ -350,7 +387,7 @@ func _exit_fx() -> void:
 	sp.scale_amount_curve = curve
 	sp.position = at + Vector3(0, 0.1, 0)
 	room_node.add_child(sp)
-	exit_fx = {"ring": ring, "halo": halo, "base": base}
+	exit_fx = {"ring": ring, "base": base}
 
 
 ## grounding on the real table: a soft dark footprint under the room, and a shadow catcher
@@ -478,10 +515,35 @@ func spawn(count: int, pos: Dictionary) -> void:
 		add_child(n)
 		var ap: AnimationPlayer = n.find_children("*", "AnimationPlayer", true, false)[0] if n.find_children("*", "AnimationPlayer", true, false).size() else null
 		var p: Vector2i = pos.p[i]
-		var e := {"node": n, "ap": ap, "from": cell(p.x, p.y), "to": cell(p.x, p.y), "t": 1.0, "dur": HOP, "yaw": 0.0, "tyaw": 0.0, "bump": Vector3.ZERO, "ghost": ghost, "anim": ""}
-		n.position = e.to
+		var e := {"node": n, "ap": ap, "from": cell(p.x, p.y), "to": cell(p.x, p.y), "t": 1.0, "dur": HOP, "yaw": 0.0, "tyaw": 0.0, "bump": Vector3.ZERO, "ghost": ghost, "anim": "", "still": 0.0}
 		ents.append(e)
 		_play(e, "idle")
+	var off := _spread(pos)
+	for i in ents.size():
+		ents[i].to = ents[i].to + off[i]; ents[i].from = ents[i].to
+		ents[i].node.position = ents[i].to
+
+
+## Several characters on one cell (all of them at the start of a loop): drawn on the same spot
+## they flicker into each other. The hero keeps the centre, echoes stand around it.
+func _spread(pos: Dictionary) -> Array:
+	var out := []
+	var groups := {}
+	for i in pos.p.size():
+		out.append(Vector3.ZERO)
+		var c: Vector2i = pos.p[i]
+		if not groups.has(c): groups[c] = []
+		groups[c].append(i)
+	var hero: int = pos.p.size() - 1
+	for c in groups:
+		var g: Array = groups[c]
+		if g.size() < 2: continue
+		var ring := g.filter(func(i): return i != hero)
+		if not g.has(hero): ring = ring.slice(1)   # no hero here: the first echo keeps the centre
+		for j in ring.size():
+			var a := TAU * j / ring.size() + PI / 4
+			out[ring[j]] = Vector3(cos(a), 0, sin(a)) * 0.24
+	return out
 
 
 func _play(e: Dictionary, name: String) -> void:
@@ -494,8 +556,10 @@ func _play(e: Dictionary, name: String) -> void:
 			found = a; break
 	if found == "":
 		return
-	if name == "idle":
+	if name == "idle" or name == "walk":
 		ap.get_animation(found).loop_mode = Animation.LOOP_LINEAR
+		if e.anim == name and ap.is_playing():
+			return   # keep the cycle going instead of restarting it every step
 	e.anim = name
 	ap.play(found, 0.08)
 
@@ -506,17 +570,20 @@ func _face(e: Dictionary, a: String) -> void:
 		e.tyaw = atan2(float(d.x), float(-d.y))
 
 
-## one tick: every entity hops (or bumps) from its old cell to its new one
+## one tick: every entity walks (or bumps) from its old cell to its new one
 func animate(before: Dictionary, after: Dictionary, acts: Array, dur: float) -> void:
+	var off := _spread(after)
 	for i in ents.size():
 		var e: Dictionary = ents[i]
 		var a: Vector2i = before.p[i]; var b: Vector2i = after.p[i]
 		var act: String = acts[i] if i < acts.size() else "W"
 		_face(e, act)
-		e.from = cell(a.x, a.y); e.to = cell(b.x, b.y); e.t = 0.0; e.dur = dur * 0.9
+		e.from = e.node.position; e.from.y = 0.0
+		e.to = cell(b.x, b.y) + off[i]; e.t = 0.0; e.dur = dur
 		e.bump = Vector3.ZERO
 		if a != b:
-			_play(e, "hop")
+			e.still = 0.0
+			_play(e, "walk" if _has(e, "walk") else "hop")
 		elif act != "W" and after.b[i]:
 			e.bump = Vector3(sin(e.tyaw), 0, cos(e.tyaw)) * 0.22
 			_play(e, "bump")
@@ -534,11 +601,16 @@ func cheer(i: int) -> void:
 	_play(ents[i], "cheer")
 
 
+func _has(e: Dictionary, name: String) -> bool:
+	return e.ap != null and (e.ap as AnimationPlayer).has_animation(name)
+
+
 func snap(pos: Dictionary) -> void:
+	var off := _spread(pos)
 	for i in mini(ents.size(), pos.p.size()):
 		var p: Vector2i = pos.p[i]
 		var e: Dictionary = ents[i]
-		e.from = cell(p.x, p.y); e.to = e.from; e.t = 1.0
+		e.from = cell(p.x, p.y) + off[i]; e.to = e.from; e.t = 1.0
 		e.node.position = e.to
 
 
@@ -595,10 +667,18 @@ func _process(dt: float) -> void:
 			var p: Vector3 = (e.from as Vector3).lerp(e.to, k)
 			if e.bump != Vector3.ZERO:
 				p += e.bump * sin(k * PI)
-			p.y = sin(k * PI) * (0.28 if e.from != e.to else 0.06)
+			var walking: bool = (e.from as Vector3).distance_to(e.to) > 0.3
+			# walking: a light step bob (two steps per cell) instead of a jump
+			p.y = absf(sin(k * TAU)) * 0.04 if walking else sin(k * PI) * 0.06
 			e.node.position = p
-			if e.t >= 1.0 and e.anim != "cheer":
-				_play(e, "idle")
+		else:
+			e.still += dt
+			# a short pause between steps keeps walking; a longer one settles into idle
+			if e.still > 0.12 and e.anim != "cheer" and e.anim != "idle": _play(e, "idle")
+			# alive: after standing a while the hero turns to look at you, then back
+			if not e.ghost and e.still > 2.0 and fmod(e.still, 7.0) < 3.5:
+				var v: Vector3 = to_local(viewer) - (e.node as Node3D).position
+				e.tyaw = atan2(v.x, v.z)
 		var dy: float = wrapf(e.tyaw - e.yaw, -PI, PI)
 		e.yaw += dy * minf(1.0, dt * 14.0)
 		e.node.rotation.y = e.yaw
@@ -617,19 +697,17 @@ func _process(dt: float) -> void:
 		var k: float = clampf(pulse + d.lit * 0.6, 0.0, 1.4)
 		var col: Color = (d.col as Color).lerp(Color.WHITE, d.flash * 0.8)
 		var em: Node3D = d.emb
-		((em.get_child(0) as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = col * minf(1.0, 0.5 + k * 0.5)
+		_set_neon(em, col, k / 1.4 + d.flash * 0.3)
 		em.rotation.y = d.open * _T * 2.0
 		em.position.y = 2.2 + sin(_T * 1.8 + i) * 0.06 + d.open * 0.3
 		em.scale = Vector3.ONE * (1.0 + d.flash * 0.3 + hov * 0.15)
-		var hm := (d.halo as MeshInstance3D).material_override as StandardMaterial3D
-		hm.albedo_color = Color(col.r, col.g, col.b, 0.1 + 0.22 * k + d.flash * 0.3)
 	for p in plates:
 		p.on = move_toward(p.on, p.target, dt * 8.0)
 		(p.node as Node3D).position.y = -0.05 * p.on
 		var hov := 1.0 if hover_door >= 0 and R.plates[plates.find(p)].door == hover_door else 0.0
 		var a: float = 0.15 + 0.08 * sin(_T * 3.0) + p.on * 0.4 + hov * 0.25
 		var c: Color = p.col
-		((p.halo as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = Color(c.r, c.g, c.b, a)
+		_set_neon(p.halo, c, a / 0.9)
 	if exit_fx.size() and ents.size():
 		var hero: Node3D = ents[ents.size() - 1].node
 		var dist := hero.position.distance_to(cell(R.exit.x, R.exit.y))
@@ -639,8 +717,8 @@ func _process(dt: float) -> void:
 		ring.rotation.y += dt * (0.8 + near_exit * 3.0)
 		ring.position.y = cell(R.exit.x, R.exit.y).y + 1.3 + sin(_T * 1.5) * 0.12
 		var g := 0.7 + 0.3 * sin(_T * 2.2) + near_exit * 0.5
-		((exit_fx.halo as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = Color(EXIT_COL.r, EXIT_COL.g, EXIT_COL.b, 0.2 * g)
-		((exit_fx.base as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = Color(EXIT_COL.r, EXIT_COL.g, EXIT_COL.b, 0.3 * g)
+		_set_neon(exit_fx.ring, EXIT_COL, g / 1.5)
+		_set_neon(exit_fx.base, EXIT_COL, g / 1.5)
 	if link: _draw_link()
 	if hint_node:
 		hint_t -= dt
