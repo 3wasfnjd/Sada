@@ -123,7 +123,7 @@ for tag, rz, d, z in (('front', 0, 3.2, .6), ('side', 90, 3.2, .6), ('back', 180
 
 if arm:   # pose previews to check the skin weights
     high.hide_render = True; (arm).location.x = 0; arm.rotation_euler = (0, 0, 0)
-    for act, f in (('idle', 0), ('hop', 5), ('cheer', 20), ('land', 3)):
+    for act, f in (('idle', 0), ('walk', 9), ('cheer', 20), ('land', 3)):
         arm.animation_data.action = bpy.data.actions[act]; scene.frame_set(f)
         cam.location = (size * .5, -size * 2.6, h * .55); cam.rotation_euler = (math.radians(86), 0, math.radians(10))
         scene.render.resolution_x, scene.render.resolution_y = 700, 700

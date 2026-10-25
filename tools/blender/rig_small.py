@@ -88,10 +88,21 @@ def build(mesh, H, kind='gnome'):
         for b in names:
             pb = arm.pose.bones[b]; pb.location = (0, 0, 0); pb.rotation_euler = (0, 0, 0); pb.scale = (1, 1, 1)
     clip('idle', 120, [
-        (30, 'spine', 'scale', (1.02, 1.01, 1.02)), (90, 'spine', 'scale', (1.02, 1.01, 1.02)),
-        (40, 'head', 'rotation_euler', (0, .06, .03)), (100, 'head', 'rotation_euler', (0, -.06, -.03)),
-        (30, 'hat_tip', 'rotation_euler', (.15, 0, .1)), (90, 'hat_tip', 'rotation_euler', (-.1, 0, -.1)),
-        (30, 'arm.L', 'rotation_euler', (.05, 0, .04)), (90, 'arm.R', 'rotation_euler', (.05, 0, -.04)),
+        (30, 'spine', 'scale', (1.03, 1.02, 1.03)), (90, 'spine', 'scale', (1.03, 1.02, 1.03)),
+        (40, 'head', 'rotation_euler', (0, .16, .04)), (70, 'head', 'rotation_euler', (-.06, 0, 0)), (100, 'head', 'rotation_euler', (0, -.16, -.04)),
+        (30, 'hat_tip', 'rotation_euler', (.22, 0, .14)), (90, 'hat_tip', 'rotation_euler', (-.16, 0, -.14)),
+        (30, 'arm.L', 'rotation_euler', (.08, 0, .06)), (90, 'arm.R', 'rotation_euler', (.08, 0, -.06)),
+    ])
+    # walk: one full stride per 0.6 s (two grid steps), loops in the game
+    clip('walk', 36, [
+        (9, 'leg.L', 'rotation_euler', (.55, 0, 0)), (9, 'leg.R', 'rotation_euler', (-.45, 0, 0)),
+        (27, 'leg.L', 'rotation_euler', (-.45, 0, 0)), (27, 'leg.R', 'rotation_euler', (.55, 0, 0)),
+        (9, 'arm.L', 'rotation_euler', (-.4, 0, 0)), (9, 'arm.R', 'rotation_euler', (.4, 0, 0)),
+        (27, 'arm.L', 'rotation_euler', (.4, 0, 0)), (27, 'arm.R', 'rotation_euler', (-.4, 0, 0)),
+        (4, 'root', 'scale', (1.02, .97, 1.02)), (9, 'root', 'scale', (.99, 1.03, .99)), (22, 'root', 'scale', (1.02, .97, 1.02)), (27, 'root', 'scale', (.99, 1.03, .99)),
+        (9, 'spine', 'rotation_euler', (0, .08, 0)), (27, 'spine', 'rotation_euler', (0, -.08, 0)),
+        (9, 'head', 'rotation_euler', (0, -.05, .04)), (27, 'head', 'rotation_euler', (0, .05, -.04)),
+        (12, 'hat_tip', 'rotation_euler', (-.25, 0, .15)), (18, 'hat_tip', 'rotation_euler', (.1, 0, 0)), (30, 'hat_tip', 'rotation_euler', (-.25, 0, -.15)),
     ])
     clip('hop', 10, [
         (2, 'root', 'scale', (1.06, .9, 1.06)), (5, 'root', 'scale', (.96, 1.06, .96)), (9, 'root', 'scale', (1.03, .96, 1.03)),

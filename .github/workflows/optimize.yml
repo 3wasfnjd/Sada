@@ -33,6 +33,10 @@ jobs:
             b="${f%.*}"; in="$f"
             case "$f" in *.glb|*.gltf) in="$RUNNER_TEMP/src/$(basename "$f")"; node tools/blender/decode.mjs "$f" "$in" ;; esac
             blender -b --python-exit-code 1 -P tools/blender/optimize.py -- "$in" assets docs/previews "$b.json"
+            # variants of the same source: <name>.<variant>.json (e.g. gnome.quest.json -> a sharper Quest version)
+            for v in "$b".*.json; do
+              blender -b --python-exit-code 1 -P tools/blender/optimize.py -- "$in" assets docs/previews "$v"
+            done
           done
       - name: commit
         run: |
