@@ -56,6 +56,20 @@ def build(mesh, H, kind='gnome'):
         mesh.vertex_groups[d[0][1]].add([v.index], w0 / (w0 + w1), 'REPLACE')
         mesh.vertex_groups[d[1][1]].add([v.index], w1 / (w0 + w1), 'REPLACE')
     print('[rig] vertices weighted by fallback:', missed, 'of', len(mesh.data.vertices))
+    # keep arms out of the head, beard and hat: above the shoulders only head/hat bones may move vertices
+    sh_z, neck_z, top_z = hx(P['shoulder']), hx(P['neck']), hx(P['head_top'])
+    vg = mesh.vertex_groups
+    limb = [vg[n].index for n in ('arm.L', 'arm.R', 'hand.L', 'hand.R') if n in vg]
+    moved = 0
+    for v in mesh.data.vertices:
+        p = mesh.matrix_world @ v.co
+        if p.z < sh_z + hx(.02) or abs(p.x) > hx(P['arm_x'] + .06): continue
+        w = sum(g.weight for g in v.groups if g.group in limb)
+        if w <= 0: continue
+        for gi in limb: vg[gi].remove([v.index])
+        target = 'hat' if p.z > top_z else ('head' if p.z > neck_z - hx(.06) else 'spine')
+        vg[target].add([v.index], w, 'ADD'); moved += 1
+    print('[rig] limb weights moved off head/beard/hat:', moved)
     _select([mesh], mesh); bpy.ops.object.vertex_group_limit_total(limit=4); bpy.ops.object.vertex_group_normalize_all(lock_active=False)
 
     # clips (60 fps). Bone-local: Y runs along the bone; X rotation = bend forward/back
@@ -94,8 +108,8 @@ def build(mesh, H, kind='gnome'):
         (3, 'arm.L', 'rotation_euler', (0, 0, .5)), (3, 'arm.R', 'rotation_euler', (0, 0, -.5)), (5, 'hat_tip', 'rotation_euler', (.6, 0, 0)),
     ])
     clip('cheer', 48, [
-        (8, 'arm.L', 'rotation_euler', (-2.4, 0, .2)), (40, 'arm.L', 'rotation_euler', (-2.4, 0, .2)),
-        (8, 'arm.R', 'rotation_euler', (-2.4, 0, -.2)), (40, 'arm.R', 'rotation_euler', (-2.4, 0, -.2)),
+        (8, 'arm.L', 'rotation_euler', (-1.7, 0, .35)), (40, 'arm.L', 'rotation_euler', (-1.7, 0, .35)),
+        (8, 'arm.R', 'rotation_euler', (-1.7, 0, -.35)), (40, 'arm.R', 'rotation_euler', (-1.7, 0, -.35)),
         (14, 'spine', 'scale', (.97, 1.06, .97)), (26, 'spine', 'scale', (1.03, .96, 1.03)), (38, 'spine', 'scale', (.97, 1.06, .97)),
         (12, 'head', 'rotation_euler', (.1, 0, .12)), (24, 'head', 'rotation_euler', (.1, 0, -.12)), (36, 'head', 'rotation_euler', (.1, 0, .12)),
         (12, 'hat_tip', 'rotation_euler', (-.5, 0, .3)), (28, 'hat_tip', 'rotation_euler', (.4, 0, -.3)),
