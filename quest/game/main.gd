@@ -69,7 +69,13 @@ func _ready() -> void:
 	sun.light_energy = 0.7
 	sun.light_color = Color(1.0, 0.97, 0.92)
 	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 3.0
+	# the whole room is under a metre: an orthogonal shadow map over a short distance keeps
+	# shadows crisp at table scale (the default split cascades spread texels over metres)
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+	sun.directional_shadow_max_distance = 2.0
+	sun.shadow_blur = 1.2
+	RenderingServer.directional_shadow_atlas_set_size(4096, true)
+	RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_LOW)
 	add_child(sun)
 
 	origin = XROrigin3D.new(); add_child(origin)
@@ -77,6 +83,11 @@ func _ready() -> void:
 	if xr and (xr.is_initialized() or xr.initialize()):
 		xr_on = true
 		get_viewport().use_xr = true
+		# sharpness: render above the headset's recommended size (with 4x MSAA), light
+		# fixed foveation — the same settings Mafateeh ships with on Quest 3
+		xr.set("render_target_size_multiplier", 1.4)
+		xr.set("foveation_level", 1)
+		xr.set("foveation_dynamic", true)
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 		cam = XRCamera3D.new()
 		cam.near = 0.02
