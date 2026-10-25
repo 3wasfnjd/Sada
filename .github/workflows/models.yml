@@ -1,0 +1,33 @@
+name: models
+# Builds the game models with Blender (code only), exports .glb, renders previews, commits them.
+on:
+  push:
+    paths: ['tools/blender/**', '.github/workflows/models.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  models:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: system libraries for headless Blender
+        run: sudo apt-get update -q && sudo apt-get install -y -q libxi6 libxkbcommon0 libsm6 libxrender1 libgl1 libegl1 libxxf86vm1 libxfixes3
+      - name: download Blender 4.5 LTS (latest patch)
+        run: |
+          F=$(curl -s https://download.blender.org/release/Blender4.5/ | grep -o 'blender-4\.5\.[0-9]*-linux-x64\.tar\.xz' | sort -uV | tail -1)
+          echo "using $F"
+          curl -sSL "https://download.blender.org/release/Blender4.5/$F" | tar -xJ -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/${F%.tar.xz}" >> "$GITHUB_PATH"
+      - run: blender --version
+      - name: build models and previews
+        run: blender -b --python-exit-code 1 -P tools/blender/make_assets.py -- assets docs/previews
+      - name: report
+        run: python3 tools/blender/report.py
+      - name: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets docs/previews
+          git diff --cached --quiet || git commit -m "models: glb + previews from tools/blender"
+          git push
