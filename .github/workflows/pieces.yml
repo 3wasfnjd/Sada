@@ -1,0 +1,27 @@
+name: pieces
+# Converts the artist's combined scene (models_src/pieces/all.gltf) into light game pieces in assets/pieces/.
+on:
+  push:
+    paths: ['models_src/pieces/**', 'tools/blender/pieces.py', '.github/workflows/pieces.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  pieces:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -q && sudo apt-get install -y -q libxi6 libxkbcommon0 libsm6 libxrender1 libgl1 libegl1 libxxf86vm1 libxfixes3
+      - name: download Blender 4.5 LTS
+        run: |
+          F=$(curl -s https://download.blender.org/release/Blender4.5/ | grep -o 'blender-4\.5\.[0-9]*-linux-x64\.tar\.xz' | sort -uV | tail -1)
+          curl -sSL "https://download.blender.org/release/Blender4.5/$F" | tar -xJ -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/${F%.tar.xz}" >> "$GITHUB_PATH"
+      - run: blender -b --python-exit-code 1 -P tools/blender/pieces.py -- models_src/pieces/all.gltf assets/pieces docs/previews
+      - name: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/pieces
+          git diff --cached --quiet || git commit -m "pieces: game pieces from models_src/pieces/all.gltf"
+          git pull --rebase -q && git push
