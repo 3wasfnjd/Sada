@@ -1,0 +1,14 @@
+; Engine configuration file.
+; صدى — Quest version (Godot). Logic in core/, tests in tests/.
+
+config_version=5
+
+[application]
+
+config/name="Sada Quest"
+config/version="0.1.0"
+config/features=PackedStringArray("4.7", "Mobile")
+
+[rendering]
+
+renderer/rendering_method="mobile"

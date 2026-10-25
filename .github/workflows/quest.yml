@@ -1,0 +1,24 @@
+name: quest
+# Godot (Quest) version: headless logic tests, including bit-for-bit parity with the JS rooms.
+on:
+  push:
+    paths: ['quest/**', 'src/logic.js', 'tools/dump_fixtures.mjs', '.github/workflows/quest.yml']
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GODOT: 4.7.2-stable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: fixtures are current
+        run: node tools/dump_fixtures.mjs && git diff --exit-code quest/tests/fixtures.json
+      - name: download Godot
+        run: |
+          curl -sSL -o g.zip "https://github.com/godotengine/godot/releases/download/${GODOT}/Godot_v${GODOT}_linux.x86_64.zip"
+          unzip -q g.zip && mv Godot_v${GODOT}_linux.x86_64 godot && ./godot --version
+      - name: logic tests
+        run: ./godot --headless --path quest -s res://tests/run_tests.gd
