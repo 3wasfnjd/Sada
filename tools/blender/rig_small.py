@@ -107,12 +107,13 @@ def build(mesh, H, kind='gnome'):
         (3, 'root', 'scale', (1.12, .84, 1.12)), (9, 'root', 'scale', (.97, 1.04, .97)),
         (3, 'arm.L', 'rotation_euler', (0, 0, .5)), (3, 'arm.R', 'rotation_euler', (0, 0, -.5)), (5, 'hat_tip', 'rotation_euler', (.6, 0, 0)),
     ])
+    # cheer without raising the arms overhead: the auto-weighted AI mesh tears when the arms pass the beard
     clip('cheer', 48, [
-        (8, 'arm.L', 'rotation_euler', (-1.7, 0, .35)), (40, 'arm.L', 'rotation_euler', (-1.7, 0, .35)),
-        (8, 'arm.R', 'rotation_euler', (-1.7, 0, -.35)), (40, 'arm.R', 'rotation_euler', (-1.7, 0, -.35)),
-        (14, 'spine', 'scale', (.97, 1.06, .97)), (26, 'spine', 'scale', (1.03, .96, 1.03)), (38, 'spine', 'scale', (.97, 1.06, .97)),
-        (12, 'head', 'rotation_euler', (.1, 0, .12)), (24, 'head', 'rotation_euler', (.1, 0, -.12)), (36, 'head', 'rotation_euler', (.1, 0, .12)),
-        (12, 'hat_tip', 'rotation_euler', (-.5, 0, .3)), (28, 'hat_tip', 'rotation_euler', (.4, 0, -.3)),
+        (8, 'root', 'scale', (1.06, .92, 1.06)), (16, 'root', 'scale', (.96, 1.06, .96)), (28, 'root', 'scale', (1.05, .94, 1.05)), (38, 'root', 'scale', (.97, 1.04, .97)),
+        (10, 'arm.L', 'rotation_euler', (-.35, 0, .45)), (38, 'arm.L', 'rotation_euler', (-.35, 0, .45)),
+        (10, 'arm.R', 'rotation_euler', (-.35, 0, -.45)), (38, 'arm.R', 'rotation_euler', (-.35, 0, -.45)),
+        (12, 'head', 'rotation_euler', (.12, 0, .14)), (24, 'head', 'rotation_euler', (.12, 0, -.14)), (36, 'head', 'rotation_euler', (.12, 0, .14)),
+        (12, 'hat_tip', 'rotation_euler', (-.5, 0, .35)), (28, 'hat_tip', 'rotation_euler', (.45, 0, -.35)), (42, 'hat_tip', 'rotation_euler', (-.2, 0, .1)),
     ])
     arm.animation_data.action = bpy.data.actions['idle']
     arm.rotation_mode = 'XYZ'
