@@ -20,12 +20,19 @@ jobs:
           F=$(curl -s https://download.blender.org/release/Blender4.5/ | grep -o 'blender-4\.5\.[0-9]*-linux-x64\.tar\.xz' | sort -uV | tail -1)
           curl -sSL "https://download.blender.org/release/Blender4.5/$F" | tar -xJ -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/${F%.tar.xz}" >> "$GITHUB_PATH"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: glTF decoder (meshopt / quantization -> plain glTF for Blender)
+        run: cd tools/blender && npm init -y >/dev/null && npm i --no-save @gltf-transform/core@4.1.1 @gltf-transform/extensions@4.1.1 @gltf-transform/functions@4.1.1 meshoptimizer@0.22.0
       - name: optimize every source model
         run: |
           shopt -s nullglob
+          mkdir -p "$RUNNER_TEMP/src"
           for f in models_src/*.{glb,gltf,fbx,obj}; do
-            b="${f%.*}"
-            blender -b --python-exit-code 1 -P tools/blender/optimize.py -- "$f" assets docs/previews "$b.json"
+            b="${f%.*}"; in="$f"
+            case "$f" in *.glb|*.gltf) in="$RUNNER_TEMP/src/$(basename "$f")"; node tools/blender/decode.mjs "$f" "$in" ;; esac
+            blender -b --python-exit-code 1 -P tools/blender/optimize.py -- "$in" assets docs/previews "$b.json"
           done
       - name: commit
         run: |
