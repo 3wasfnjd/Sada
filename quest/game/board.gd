@@ -76,7 +76,10 @@ static func _srgb_mesh(mesh: Mesh) -> Mesh:
 		var cols = arr[Mesh.ARRAY_COLOR]
 		if cols != null and cols.size():
 			var c: PackedColorArray = cols
-			for i in c.size(): c[i] = c[i].linear_to_srgb()
+			for i in c.size():
+				var v: Color = c[i].linear_to_srgb()
+				var l := v.get_luminance()
+				c[i] = Color(lerpf(v.r, l, 0.12), lerpf(v.g, l, 0.12), lerpf(v.b, l, 0.12), v.a)
 			arr[Mesh.ARRAY_COLOR] = c
 			any = true
 		out.add_surface_from_arrays(mesh.surface_get_primitive_type(s), arr)
@@ -112,16 +115,43 @@ static func prep(n: Node) -> void:
 		prep(c)
 
 
+## Fit transform per piece: the exported pieces are not all centred on their own origin
+## (the wall block sat 1.24 cells off, inside the next row). Centre every piece on its cell in
+## x/z; the wall block fills exactly one cell.
+var _fits := {}
+const FILL := {"WallBlock_1x1": 1.0}   # the floor tile overlaps its neighbours on purpose (no seams)
+
+func _fit_of(name: String, src: Node3D) -> Transform3D:
+	if _fits.has(name): return _fits[name]
+	var box := AABB(); var first := true
+	for mi in src.find_children("*", "MeshInstance3D", true, false):
+		var b: AABB = _rel(src, mi) * (mi as MeshInstance3D).get_aabb()
+		box = b if first else box.merge(b); first = false
+	var c := box.get_center()
+	var sc := Vector3.ONE
+	if FILL.has(name):
+		sc = Vector3(FILL[name] / maxf(box.size.x, 0.01), 1.0, FILL[name] / maxf(box.size.z, 0.01))
+	var t := Transform3D(Basis.from_scale(sc), Vector3(-c.x * sc.x, 0.0, -c.z * sc.z))
+	_fits[name] = t
+	return t
+
+
 func _piece(name: String) -> Node3D:
-	var n: Node3D = _scene(name).instantiate()
-	prep(n)
+	var src: Node3D = _scene(name).instantiate()
+	prep(src)
+	var n := Node3D.new()
+	var inner := Node3D.new()
+	inner.transform = _fit_of(name, src)
+	n.add_child(inner)
+	src.transform = Transform3D.IDENTITY
+	inner.add_child(src)
 	return n
 
 
 ## one mesh drawn many times (floor tiles, wall blocks): a MultiMesh, one draw call each
 func _multi(name: String, cells: Array) -> MultiMeshInstance3D:
 	var src := _piece(name)
-	var mi: MeshInstance3D = src.find_children("*", "MeshInstance3D", true, false)[0] if not (src is MeshInstance3D) else src
+	var mi: MeshInstance3D = src.find_children("*", "MeshInstance3D", true, false)[0]
 	var mesh: Mesh = mi.mesh.duplicate()
 	for s in mesh.get_surface_count():
 		mesh.surface_set_material(s, mi.get_surface_override_material(s))
@@ -175,9 +205,15 @@ func build(room: Dictionary) -> void:
 		var mark: MeshInstance3D = null
 		if d.kind == "inverse" or d.kind == "timed":
 			mark = _door_mark(d.kind, GLYPH[g])
-			mark.position = cell(d.x, d.y, 2.05)
+			mark.position = cell(d.x, d.y, 2.75)
 			room_node.add_child(mark)
-		doors.append({"panel": panel, "open": 0.0, "target": 0.0, "mark": mark})
+		var emb := _emblem(g, d.kind == "inverse")
+		emb.position = cell(d.x, d.y, 2.2)
+		room_node.add_child(emb)
+		var halo := _halo(GLYPH[g], 0.9, true)
+		halo.position = cell(d.x, d.y, 2.2) + Vector3(0, 0, -0.05)
+		room_node.add_child(halo)
+		doors.append({"panel": panel, "open": 0.0, "target": 0.0, "mark": mark, "emb": emb, "halo": halo, "lit": 0.0, "flash": 0.0, "col": GLYPH[g]})
 	for p in R.plates:
 		var g: int = p.door % 4
 		var n := _piece(COLOURS[g] + "Plate")
@@ -187,10 +223,25 @@ func build(room: Dictionary) -> void:
 			var ring := _ring(GLYPH[g])
 			ring.position = cell(p.x, p.y, 0.12)
 			room_node.add_child(ring)
-		plates.append({"node": n, "on": 0.0, "target": 0.0})
+		var ph := _halo(GLYPH[g], 0.95, false)
+		ph.position = cell(p.x, p.y, 0.13)
+		room_node.add_child(ph)
+		plates.append({"node": n, "on": 0.0, "target": 0.0, "halo": ph, "col": GLYPH[g]})
 	exit_node = _piece("ExitRing")
 	exit_node.position = cell(R.exit.x, R.exit.y)
 	room_node.add_child(exit_node)
+	_exit_fx()
+	_ground()
+	link = MultiMeshInstance3D.new()
+	var lmm := MultiMesh.new(); lmm.transform_format = MultiMesh.TRANSFORM_3D
+	var ld := SphereMesh.new(); ld.radius = 0.06; ld.height = 0.12; ld.radial_segments = 8; ld.rings = 4
+	var lm := _glow(Color.WHITE); lm.no_depth_test = true; lm.render_priority = 5
+	ld.material = lm
+	lmm.mesh = ld; lmm.instance_count = LINK_DOTS * 4; lmm.visible_instance_count = 0
+	link.multimesh = lmm
+	link.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	room_node.add_child(link)
+	hover_door = -1
 	_build_ticks()
 	clear_hint()
 
@@ -215,6 +266,154 @@ func _ring(c: Color) -> MeshInstance3D:
 	m.mesh = t
 	m.material_override = _glow(c)
 	return m
+
+
+# ---------------- neon ----------------
+
+const EXIT_COL := Color(1.0, 0.82, 0.35)
+var exit_fx := {}
+var link: MultiMeshInstance3D
+var hover_door := -1
+var near_exit := 0.0
+var _T := 0.0
+static var _halo_tex: GradientTexture2D
+
+## the door's shape as a neon outline: circle, triangle, square, diamond (inverse: thinner, hollow)
+func _emblem(g: int, inverse: bool) -> Node3D:
+	var holder := Node3D.new()   # spins and bobs; the shape inside stays upright, facing the player
+	var m := MeshInstance3D.new()
+	holder.add_child(m)
+	var t := TorusMesh.new()
+	t.rings = [48, 3, 4, 4][g]
+	t.ring_segments = 8
+	t.outer_radius = 0.42
+	t.inner_radius = 0.35 if not inverse else 0.39
+	m.mesh = t
+	# torus lies flat: turn its corners within its own plane, then stand it up
+	m.basis = Basis(Vector3.RIGHT, PI / 2) * Basis(Vector3.UP, [0.0, 0.0, PI / 4, 0.0][g])
+	m.material_override = _glow(GLYPH[g])
+	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return holder
+
+
+## soft additive glow (a radial gradient on a quad): the neon "bloom" without post-processing
+func _halo(c: Color, size: float, billboard: bool) -> MeshInstance3D:
+	if _halo_tex == null:
+		var gr := Gradient.new()
+		gr.set_color(0, Color(1, 1, 1, 1)); gr.set_color(1, Color(1, 1, 1, 0))
+		gr.add_point(0.35, Color(1, 1, 1, 0.35))
+		_halo_tex = GradientTexture2D.new()
+		_halo_tex.gradient = gr; _halo_tex.fill = GradientTexture2D.FILL_RADIAL
+		_halo_tex.fill_from = Vector2(0.5, 0.5); _halo_tex.fill_to = Vector2(1.0, 0.5)
+		_halo_tex.width = 128; _halo_tex.height = 128
+	var m := MeshInstance3D.new()
+	var q := QuadMesh.new(); q.size = Vector2(size, size)
+	m.mesh = q
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_texture = _halo_tex
+	mat.albedo_color = Color(c.r, c.g, c.b, 0.5)
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	if billboard: mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	else: m.rotation.x = -PI / 2
+	m.material_override = mat
+	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return m
+
+
+func _exit_fx() -> void:
+	var at := cell(R.exit.x, R.exit.y)
+	var ring := _emblem(0, false)
+	ring.scale = Vector3.ONE * 1.5
+	((ring.get_child(0) as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = EXIT_COL
+	ring.position = at + Vector3(0, 1.3, 0)
+	room_node.add_child(ring)
+	var halo := _halo(EXIT_COL, 1.3, true)
+	halo.position = at + Vector3(0, 1.3, 0)
+	room_node.add_child(halo)
+	var base := _halo(EXIT_COL, 1.3, false)
+	base.position = at + Vector3(0, 0.05, 0)
+	room_node.add_child(base)
+	var sp := CPUParticles3D.new()
+	sp.amount = 24; sp.lifetime = 1.8
+	sp.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
+	sp.emission_ring_axis = Vector3.UP; sp.emission_ring_radius = 0.45; sp.emission_ring_inner_radius = 0.3; sp.emission_ring_height = 0.05
+	sp.direction = Vector3.UP; sp.spread = 8; sp.gravity = Vector3.ZERO
+	sp.initial_velocity_min = 0.5; sp.initial_velocity_max = 0.9
+	sp.scale_amount_min = 0.5; sp.scale_amount_max = 1.0
+	var dot := SphereMesh.new(); dot.radius = 0.035; dot.height = 0.07; dot.radial_segments = 6; dot.rings = 3
+	sp.mesh = dot
+	var pm := _glow(EXIT_COL); dot.material = pm
+	var curve := Curve.new(); curve.add_point(Vector2(0, 0)); curve.add_point(Vector2(0.2, 1)); curve.add_point(Vector2(1, 0))
+	sp.scale_amount_curve = curve
+	sp.position = at + Vector3(0, 0.1, 0)
+	room_node.add_child(sp)
+	exit_fx = {"ring": ring, "halo": halo, "base": base}
+
+
+## grounding on the real table: a soft dark footprint under the room, and a shadow catcher
+## that turns the room's shadow into darkness over the passthrough image
+func _ground() -> void:
+	var blob := _halo(Color.BLACK, 1.0, false)
+	blob.scale = Vector3(R.W + 1.6, R.H + 1.6, 1)
+	var bm := blob.material_override as StandardMaterial3D
+	bm.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
+	bm.albedo_color = Color(0, 0, 0, 0.55)
+	blob.position = Vector3(0, -0.335, 0)
+	room_node.add_child(blob)
+	var catcher := MeshInstance3D.new()
+	var pl := PlaneMesh.new(); pl.size = Vector2(R.W + 6, R.H + 6)
+	catcher.mesh = pl
+	var cm := StandardMaterial3D.new()
+	cm.shadow_to_opacity = true
+	cm.albedo_color = Color(0, 0, 0)
+	cm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	cm.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	catcher.material_override = cm
+	catcher.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	catcher.position = Vector3(0, -0.33, 0)
+	room_node.add_child(catcher)
+
+
+## the ray is over this cell: a door or a plate lights up with its partner, joined by a neon arc
+func hover(c) -> void:
+	var di := -1
+	if c != null and R.size():
+		for i in R.doors.size():
+			if R.doors[i].x == c.x and R.doors[i].y == c.y: di = i
+		for p in R.plates:
+			if p.x == c.x and p.y == c.y: di = p.door
+	hover_door = di
+
+
+func flash_door(i: int) -> void:
+	if i >= 0 and i < doors.size(): doors[i].flash = 1.0
+
+
+const LINK_DOTS := 16
+
+func _draw_link() -> void:
+	var mm := (link as MultiMeshInstance3D).multimesh
+	if hover_door < 0:
+		mm.visible_instance_count = 0; return
+	var d: Dictionary = R.doors[hover_door]
+	var col: Color = GLYPH[hover_door % 4]
+	(mm.mesh.surface_get_material(0) as StandardMaterial3D).albedo_color = col
+	var a := cell(d.x, d.y, 1.0)
+	var n := 0
+	for p in R.plates:
+		if p.door != hover_door: continue
+		var b := cell(p.x, p.y, 0.15)
+		for k in LINK_DOTS:
+			if n >= mm.instance_count: break
+			var t := (float(k) + fmod(_T * 1.5, 1.0)) / LINK_DOTS   # dots flow from plate to door
+			var q := b.lerp(a, t) + Vector3(0, sin(t * PI) * 1.2, 0)
+			var sz := 0.6 + 0.4 * sin(t * PI)
+			mm.set_instance_transform(n, Transform3D(Basis.from_scale(Vector3.ONE * sz), q))
+			n += 1
+	mm.visible_instance_count = n
 
 
 static func _glow(c: Color) -> StandardMaterial3D:
@@ -403,14 +602,46 @@ func _process(dt: float) -> void:
 		var dy: float = wrapf(e.tyaw - e.yaw, -PI, PI)
 		e.yaw += dy * minf(1.0, dt * 14.0)
 		e.node.rotation.y = e.yaw
-	for d in doors:
+	_T += dt
+	for i in doors.size():
+		var d: Dictionary = doors[i]
 		d.open = move_toward(d.open, d.target, dt * 4.0)
 		var pn: Node3D = d.panel
 		pn.scale.y = maxf(0.03, 1.0 - d.open * 0.97)
 		pn.visible = d.open < 0.99
+		# neon: breathes when closed, bright and spinning when open, white flash on a bump
+		var hov := 1.0 if hover_door == i else 0.0
+		d.lit = move_toward(d.lit, maxf(d.target, hov * 0.7), dt * 3.0)
+		d.flash = maxf(0.0, d.flash - dt * 2.5)
+		var pulse := 0.55 + 0.25 * sin(_T * 2.6 + i)
+		var k: float = clampf(pulse + d.lit * 0.6, 0.0, 1.4)
+		var col: Color = (d.col as Color).lerp(Color.WHITE, d.flash * 0.8)
+		var em: Node3D = d.emb
+		((em.get_child(0) as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = col * minf(1.0, 0.5 + k * 0.5)
+		em.rotation.y = d.open * _T * 2.0
+		em.position.y = 2.2 + sin(_T * 1.8 + i) * 0.06 + d.open * 0.3
+		em.scale = Vector3.ONE * (1.0 + d.flash * 0.3 + hov * 0.15)
+		var hm := (d.halo as MeshInstance3D).material_override as StandardMaterial3D
+		hm.albedo_color = Color(col.r, col.g, col.b, 0.1 + 0.22 * k + d.flash * 0.3)
 	for p in plates:
 		p.on = move_toward(p.on, p.target, dt * 8.0)
 		(p.node as Node3D).position.y = -0.05 * p.on
+		var hov := 1.0 if hover_door >= 0 and R.plates[plates.find(p)].door == hover_door else 0.0
+		var a: float = 0.15 + 0.08 * sin(_T * 3.0) + p.on * 0.4 + hov * 0.25
+		var c: Color = p.col
+		((p.halo as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = Color(c.r, c.g, c.b, a)
+	if exit_fx.size() and ents.size():
+		var hero: Node3D = ents[ents.size() - 1].node
+		var dist := hero.position.distance_to(cell(R.exit.x, R.exit.y))
+		near_exit = move_toward(near_exit, clampf(1.0 - (dist - 1.0) / 2.5, 0.0, 1.0), dt * 2.0)
+	if exit_fx.size():
+		var ring: Node3D = exit_fx.ring
+		ring.rotation.y += dt * (0.8 + near_exit * 3.0)
+		ring.position.y = cell(R.exit.x, R.exit.y).y + 1.3 + sin(_T * 1.5) * 0.12
+		var g := 0.7 + 0.3 * sin(_T * 2.2) + near_exit * 0.5
+		((exit_fx.halo as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = Color(EXIT_COL.r, EXIT_COL.g, EXIT_COL.b, 0.2 * g)
+		((exit_fx.base as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = Color(EXIT_COL.r, EXIT_COL.g, EXIT_COL.b, 0.3 * g)
+	if link: _draw_link()
 	if hint_node:
 		hint_t -= dt
 		if hint_t <= 0.0:

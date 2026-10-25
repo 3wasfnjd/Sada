@@ -65,10 +65,24 @@ func _run() -> void:
 	if absf(game.table.scale.x - 2.2) > 0.01: fail("zoom not applied")
 	game.set_zoom(99.0)
 	if game.zoom > game.ZOOM_MAX: fail("zoom not clamped")
-	game.set_zoom(1.0)
+	game.set_zoom(1.0); game.turn_table(-0.7)
+	# every piece sits centred on its own cell (the wall block used to stand in the next row)
+	for nm in ["FloorTile_1x1", "WallBlock_1x1", "CircleDoor_frame", "AmberPlate", "ExitRing"]:
+		var pc: Node3D = game.board._piece(nm)
+		root.add_child(pc)
+		var box := AABB(); var first := true
+		for mi in pc.find_children("*", "MeshInstance3D", true, false):
+			var bb: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
+			box = bb if first else box.merge(bb); first = false
+		var c := box.get_center()
+		if absf(c.x) > 0.03 or absf(c.z) > 0.03: fail("%s not centred on its cell: %s" % [nm, c])
+		if nm == "WallBlock_1x1" and (absf(box.size.x - 1.0) > 0.02 or absf(box.size.z - 1.0) > 0.02):
+			fail("%s is not one cell wide: %s" % [nm, box.size])
+		pc.queue_free()
 	if shot != "":
 		game.load_room(6); await process_frame
 		game.hint(); await _wait(0.4)
+		game.board.hover(Vector2i(game.R.doors[0].x, game.R.doors[0].y))
 		await _shoot(shot + "/hint.png")
 	print("play test: %d failure(s)" % failed)
 	quit(1 if failed else 0)

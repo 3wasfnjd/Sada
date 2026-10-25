@@ -60,13 +60,13 @@ func _ready() -> void:
 	env = Environment.new()
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.62, 0.64, 0.72)
-	env.ambient_light_energy = 0.4
+	env.ambient_light_energy = 0.36
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.07, 0.08, 0.1)
 	var we := WorldEnvironment.new(); we.environment = env; add_child(we)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-55, -35, 0)
-	sun.light_energy = 0.7
+	sun.light_energy = 0.62
 	sun.light_color = Color(1.0, 0.97, 0.92)
 	sun.shadow_enabled = true
 	# the whole room is under a metre: an orthogonal shadow map over a short distance keeps
@@ -214,6 +214,8 @@ func do_action(a: String) -> bool:
 	var nxt := Logic.step(R, pos, list)
 	var me := echoes.size()
 	if a != "W" and nxt.b[me]:
+		var tgt: Vector2i = pos.p[me] + Logic.DIRS[a]
+		board.flash_door(Logic.door_at(R, tgt.x, tgt.y))
 		board.bump(me, a); _sound("bump"); _buzz(0.12); walk.clear()
 		return false
 	var before := Logic.door_states(R, pos)
@@ -388,6 +390,7 @@ func _xr_input(dt: float) -> void:
 		elif v.length() < 0.35:
 			_prev["stick"] = false; _stick_t = 0.0
 		_update_ray(rc)
+		board.hover(_ray_cell(rc))
 		if _pressed("right", "trigger_click"):
 			var hit = _ray_cell(rc)
 			if hit != null: walk_to(hit)

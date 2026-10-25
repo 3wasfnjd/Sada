@@ -8,7 +8,7 @@ config_version=5
 
 config/name="صدى — Sada"
 config/description="Echo puzzle on your table. Aboden Games — عبودين قيمز."
-config/version="0.3.1"
+config/version="0.4.0"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 boot_splash/bg_color=Color(0, 0, 0, 0)
