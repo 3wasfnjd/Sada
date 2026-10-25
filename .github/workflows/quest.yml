@@ -21,4 +21,8 @@ jobs:
           curl -sSL -o g.zip "https://github.com/godotengine/godot/releases/download/${GODOT}/Godot_v${GODOT}_linux.x86_64.zip"
           unzip -q g.zip && mv Godot_v${GODOT}_linux.x86_64 godot && ./godot --version
       - name: logic tests
-        run: timeout 600 ./godot --headless --path quest -s res://tests/run_tests.gd
+        run: |
+          timeout 600 ./godot --headless --xr-mode off --path quest --import || true
+          timeout 600 ./godot --headless --xr-mode off --path quest -s res://tests/run_tests.gd
+          timeout 600 ./godot --headless --xr-mode off --path quest -s res://tests/play_test.gd 2>&1 | tee play.txt
+          grep -q "play test: 0 failure" play.txt
