@@ -37,7 +37,8 @@ func _init() -> void:
 			"start": [room.start.x, room.start.y], "exit": [room.exit.x, room.exit.y],
 			"doors": doors, "plates": plates, "echoes": echoes, "player": "".join(room.solution.player)}
 		for k in got:
-			if JSON.stringify(got[k]) != JSON.stringify(f[k]): fail("%s %s: %s != %s" % [tag, k, JSON.stringify(got[k]), JSON.stringify(f[k])])
+			# round-trip through JSON so ints and the parser's floats compare equal
+			if JSON.stringify(JSON.parse_string(JSON.stringify(got[k]))) != JSON.stringify(f[k]): fail("%s %s: %s != %s" % [tag, k, JSON.stringify(got[k]), JSON.stringify(f[k])])
 		var alone: bool = room.get("tutorial", false) and (int(f.E) == 0)
 		if not Logic.verify(room, alone): fail(tag + ": verify")
 	print("parity rooms: %d, %d ms" % [fx.rooms.size(), t_total])

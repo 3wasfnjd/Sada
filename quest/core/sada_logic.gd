@@ -142,15 +142,16 @@ static func bfs_path(room: Dictionary, from: Vector2i, to: Vector2i, doors_passa
 	return null
 
 static func route_multi(room: Dictionary, echoes: Array, targets: Array, waits: Array = []):
+	# incremental: keeps the current positions instead of re-running the whole loop every tick
 	var acts := []; var from: Vector2i = room.start
+	var pos := start_pos(room, echoes.size() + 1)
 	for k in targets.size():
-		var path = bfs_path(room, from, targets[k], true)
-		if path == null: return null
+		var pv = bfs_path(room, from, targets[k], true)
+		if pv == null: return null
+		var path: Array = pv
 		var pi := 0; var guard := 0
 		while pi < path.size() - 1 and guard < 40:
 			guard += 1
-			var states := run(room, echoes, acts)
-			var pos: Dictionary = states[states.size() - 1]
 			var me: Vector2i = pos.p[pos.p.size() - 1]
 			var nxt: Vector2i = path[pi + 1]
 			var m := ""
@@ -161,12 +162,15 @@ static func route_multi(room: Dictionary, echoes: Array, targets: Array, waits: 
 			a2.append(m)
 			var after := step(room, pos, a2)
 			if after.p[after.p.size() - 1] == nxt:
-				acts.append(m); pi += 1
+				acts.append(m); pi += 1; pos = after
 			else:
-				acts.append("W")
+				a2[a2.size() - 1] = "W"; acts.append("W"); pos = step(room, pos, a2)
 		if pi != path.size() - 1: return null
 		if k < targets.size() - 1:
-			for w in (waits[k] if k < waits.size() else 0): acts.append("W")
+			for w in (waits[k] if k < waits.size() else 0):
+				var a3 := []
+				for e in echoes: a3.append(_act(e, acts.size()))
+				a3.append("W"); acts.append("W"); pos = step(room, pos, a3)
 		from = targets[k]
 	return acts
 

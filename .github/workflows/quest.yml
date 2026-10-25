@@ -21,4 +21,4 @@ jobs:
           curl -sSL -o g.zip "https://github.com/godotengine/godot/releases/download/${GODOT}/Godot_v${GODOT}_linux.x86_64.zip"
           unzip -q g.zip && mv Godot_v${GODOT}_linux.x86_64 godot && ./godot --version
       - name: logic tests
-        run: ./godot --headless --path quest -s res://tests/run_tests.gd
+        run: timeout 600 ./godot --headless --path quest -s res://tests/run_tests.gd
