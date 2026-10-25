@@ -45,13 +45,9 @@ jobs:
           set -e
           SRC="${{ github.sha }}"
           mkdir /tmp/out && cp build/*.apk build/*.sha256 build/*.txt /tmp/out/
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout --orphan quest-apk-new
-          git rm -rq --cached . && git clean -fdq -e build
-          rm -rf build
-          cp /tmp/out/* .
+          cd /tmp/out
+          git init -q -b quest-apk
           printf 'Sada Quest sideload build %s from %s\n' "${{ github.run_number }}" "$SRC" > README.md
           git add -A
-          git commit -qm "Quest APK build ${{ github.run_number }} from ${SRC:0:7}"
-          git push -f origin HEAD:quest-apk
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Quest APK build ${{ github.run_number }} from ${SRC:0:7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:quest-apk
