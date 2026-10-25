@@ -44,4 +44,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add assets docs/previews
           git diff --cached --quiet || git commit -m "optimize: game-ready models from models_src"
+          git pull --rebase   # other model workflows may have pushed meanwhile
           git push
