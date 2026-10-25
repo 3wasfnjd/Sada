@@ -3,7 +3,7 @@ name: optimize
 # This makes a light game-ready version in assets/ with baked colour + normal maps, plus a comparison image.
 on:
   push:
-    paths: ['models_src/**', 'tools/blender/optimize.py', '.github/workflows/optimize.yml']
+    paths: ['models_src/**', 'tools/blender/optimize.py', 'tools/blender/rig_small.py', '.github/workflows/optimize.yml']
   workflow_dispatch:
 permissions:
   contents: write
