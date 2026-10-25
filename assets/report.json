@@ -83,6 +83,33 @@
   "animations": {},
   "vertex_colors": true
  },
+ "gnome.glb": {
+  "bytes": 865180,
+  "meshes": 1,
+  "materials": [
+   "gnome"
+  ],
+  "triangles": 5998,
+  "min": [
+   -0.271,
+   -0.001,
+   -0.219
+  ],
+  "max": [
+   0.27,
+   0.949,
+   0.219
+  ],
+  "skins": 1,
+  "animations": {
+   "bump": 0.167,
+   "cheer": 0.8,
+   "hop": 0.167,
+   "idle": 2,
+   "land": 0.4
+  },
+  "vertex_colors": false
+ },
  "hero.glb": {
   "bytes": 567084,
   "meshes": 1,
