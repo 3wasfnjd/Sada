@@ -137,7 +137,7 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
     <h1>صدى<span>ECHO</span></h1>
     <div class="stats"><div><b id="bestStart">٠</b><span>أبعد غرفة</span></div></div>
     <button class="big" id="go">ابدأ</button>
-    <div class="brand">عبودين قيمز · ABODEN GAMES · v0.4.0</div>
+    <div class="brand">عبودين قيمز · ABODEN GAMES · v0.5.0</div>
   </div>
 </div>
 
@@ -145,11 +145,14 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 <!-- Swappable assets: fill a slot to replace the built-in look (see docs/ASSETS.md). Empty = procedural. -->
 <script type="application/json" id="asset-manifest">
 {
-  "floor": null,
-  "wall": null,
+  "floor": { "url": "assets/pieces/FloorTile_1x1.glb" },
+  "wall": { "url": "assets/pieces/WallBlock_1x1.glb" },
   "door": null,
   "plate": null,
-  "exit": null,
+  "doorFrames": [{ "url": "assets/pieces/CircleDoor_frame.glb" }, { "url": "assets/pieces/TriangleDoor_frame.glb" }, { "url": "assets/pieces/SquareDoor_frame.glb" }, { "url": "assets/pieces/DiamondDoor_frame.glb" }],
+  "doorPanels": [{ "url": "assets/pieces/CircleDoor_panel.glb" }, { "url": "assets/pieces/TriangleDoor_panel.glb" }, { "url": "assets/pieces/SquareDoor_panel.glb" }, { "url": "assets/pieces/DiamondDoor_panel.glb" }],
+  "plates": [{ "url": "assets/pieces/AmberPlate.glb" }, { "url": "assets/pieces/PinkPlate.glb" }, { "url": "assets/pieces/MintPlate.glb" }, { "url": "assets/pieces/VioletPlate.glb" }],
+  "exit": { "url": "assets/pieces/ExitRing.glb" },
   "hero": { "url": "assets/gnome.glb", "scale": 1, "rotY": 0, "offsetY": 0 },
   "textures": { "tile": null, "wall": null, "glow": null, "beam": null },
   "sounds": { "tick": null, "wait": null, "bump": null, "plate": null, "door": null, "warn": null, "rewind": null, "spawn": null, "win": null, "land": null }
@@ -695,17 +698,30 @@ function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch 
 const MANIFEST = (() => { try { return JSON.parse(document.getElementById('asset-manifest').textContent) || {}; } catch (e) { return {}; } })();
 const ASSET = { tex: {}, snd: {}, buf: {} };
 const MODEL_SLOTS = ['floor', 'wall', 'door', 'plate', 'exit', 'hero'];
+const LIST_SLOTS = ['doorFrames', 'doorPanels', 'plates'];   // one model per door colour (amber, pink, mint, violet)
+// pieces from tools/blender/pieces.py: Sada_glow / Sada_haze carry their colour in vertex colours
+function prepModel(gltf) {
+  gltf.scene.traverse(o => {
+    if (!o.isMesh) return;
+    const n = (o.material && o.material.name) || '';
+    if (n.startsWith('Sada_glow')) o.material = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, name: n });
+    else if (n.startsWith('Sada_haze')) o.material = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: .18, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false, name: n });
+    o.castShadow = !n.startsWith('Sada_haze');
+  });
+  gltf.scene.traverse(o => { if (o.isLight) o.visible = false; });
+  return gltf;
+}
 async function loadAssets() {
   const wanted = MODEL_SLOTS.filter(k => MANIFEST[k] && MANIFEST[k].url);
-  if (wanted.length) {
+  const lists = LIST_SLOTS.filter(k => Array.isArray(MANIFEST[k]) && MANIFEST[k].some(e => e && e.url));
+  if (wanted.length || lists.length) {
     try {
       const [{ GLTFLoader }, SU] = await Promise.all([import('three/addons/loaders/GLTFLoader.js'), import('three/addons/utils/SkeletonUtils.js')]);
       ASSET.SkeletonUtils = SU;
       const loader = new GLTFLoader();
-      await Promise.all(wanted.map(async k => {
-        try { ASSET[k] = { gltf: await loader.loadAsync(MANIFEST[k].url), cfg: MANIFEST[k] }; }
-        catch (e) { console.warn('[assets] could not load', k, MANIFEST[k].url, e); }
-      }));
+      const one = async cfg => { try { return { gltf: prepModel(await loader.loadAsync(cfg.url)), cfg }; } catch (e) { console.warn('[assets] could not load', cfg.url, e); return null; } };
+      await Promise.all(wanted.map(async k => { ASSET[k] = await one(MANIFEST[k]); }));
+      await Promise.all(lists.map(async k => { ASSET[k] = await Promise.all(MANIFEST[k].map(c => c && c.url ? one(c) : null)); }));
     } catch (e) { console.warn('[assets] glTF loader unavailable', e); }
   }
   const tl = new THREE.TextureLoader();
@@ -879,8 +895,10 @@ function buildRoom() {
   S.doors = R.doors.map((d, i) => {
     const gph = GLYPH[i % GLYPH.length];
     const g = new THREE.Group();
+    const gi = i % GLYPH.length, panelA = ASSET.doorPanels && ASSET.doorPanels[gi], frameA = ASSET.doorFrames && ASSET.doorFrames[gi];
     let block;
-    if (ASSET.door) block = modelClone(ASSET.door);
+    if (panelA) block = modelClone(panelA);
+    else if (ASSET.door) block = modelClone(ASSET.door);
     else { block = new THREE.Mesh(G.wall, M.door); block.position.y = .475; block.castShadow = block.receiveShadow = true; }
     const seamMat = new THREE.MeshStandardMaterial({ color: gph.color, emissive: gph.color, emissiveIntensity: 1.6 });
     const seam = new THREE.Mesh(new THREE.BoxGeometry(1.01, .07, 1.01), seamMat); seam.position.y = .5;
@@ -889,40 +907,48 @@ function buildRoom() {
     const glyphGeo = (r, t) => inv ? new THREE.RingGeometry(r * .55, r, gph.seg, 1, gph.rot) : new THREE.CylinderGeometry(r, r, t, gph.seg).rotateX(Math.PI / 2).rotateZ(gph.rot);
     seamMat.side = THREE.DoubleSide;
     const coin = new THREE.Mesh(glyphGeo(.17, .05), seamMat); coin.position.set(0, .5, .53);
-    g.add(block, seam, coin);
+    if (panelA) g.add(block); else g.add(block, seam, coin);   // modelled doors carry their own glowing symbol
     const holder = new THREE.Group(); holder.position.copy(cellV(d.x, d.y)); holder.add(g); roomGroup.add(holder);
-    const icon = new THREE.Mesh(glyphGeo(.13, .04), seamMat); icon.position.set(0, 1.45, 0);
-    const ig = glowSprite(gph.color, .9, .55); ig.position.y = 1.45; holder.add(icon, ig);
+    if (frameA) holder.add(modelClone(frameA));
+    const iconY = panelA ? 2.05 : 1.45;
+    const icon = new THREE.Mesh(glyphGeo(.13, .04), seamMat); icon.position.set(0, iconY, 0);
+    const ig = glowSprite(gph.color, .9, .55); ig.position.y = iconY; holder.add(icon, ig);
+    if (panelA && !inv) icon.visible = ig.visible = false;          // only inverse doors keep the floating hint
     // timed doors: three pips that drain while the door counts down
     const pips = [];
     if (d.kind === 'timed') for (let k = 0; k < 3; k++) {
       const m = new THREE.MeshStandardMaterial({ color: gph.color, emissive: gph.color, emissiveIntensity: .2 });
-      const pip = new THREE.Mesh(new THREE.SphereGeometry(.055, 12, 8), m); pip.position.set((k - 1) * .2, 1.13, 0); holder.add(pip); pips.push(m);
+      const pip = new THREE.Mesh(new THREE.SphereGeometry(.055, 12, 8), m); pip.position.set((k - 1) * .2, panelA ? 1.95 : 1.13, 0); holder.add(pip); pips.push(m);
     }
     items.push({ kind: 'obj', obj: holder, y: 0, d: delayOf(d.x, d.y) + .05 });
-    return { g, icon, ig, seamMat, pips, kind: d.kind, timer: 0, open: 0, target: 0, wasOpen: false };
+    return { g, icon, ig, seamMat, pips, kind: d.kind, timer: 0, open: 0, target: 0, wasOpen: false, sink: panelA ? 1.85 : .97 };
   });
   // plates
   S.plates = R.plates.map(p => {
     const gph = GLYPH[p.door % GLYPH.length];
     const holder = new THREE.Group(); holder.position.copy(cellV(p.x, p.y));
-    let b;
-    if (ASSET.plate) b = modelClone(ASSET.plate, false);
+    let b; const plateA = ASSET.plates && ASSET.plates[p.door % GLYPH.length];
+    const glowMats = [];
+    if (plateA) {
+      b = modelClone(plateA, false);
+      b.traverse(o => { if (o.isMesh && o.material.name && o.material.name.startsWith('Sada_glow')) { o.material = o.material.clone(); glowMats.push(o.material); } });
+    }
+    else if (ASSET.plate) b = modelClone(ASSET.plate, false);
     else { b = new THREE.Mesh(new THREE.CylinderGeometry(.36, .4, .07, gph.seg), M.plateBase); b.rotation.y = gph.rot; b.position.y = .035; b.receiveShadow = true; }
     const topMat = new THREE.MeshStandardMaterial({ color: gph.color, emissive: gph.color, emissiveIntensity: .5 });
     const kind = R.doors[p.door].kind;
     let top;
     if (kind === 'inverse') { topMat.side = THREE.DoubleSide; top = new THREE.Mesh(new THREE.RingGeometry(.15, .28, gph.seg, 1, gph.rot).rotateX(-Math.PI / 2), topMat); }
     else { top = new THREE.Mesh(new THREE.CylinderGeometry(.27, .27, .05, gph.seg), topMat); top.rotation.y = gph.rot; }
-    top.position.y = .1;
+    top.position.y = plateA ? .115 : .1;
     const gl = glowSprite(gph.color, 1.1, .25); gl.position.y = .15;
-    holder.add(b, top, gl); roomGroup.add(holder);
+    holder.add(b, gl); if (!plateA || kind === 'inverse') holder.add(top);   // modelled plates show their own disc; inverse keeps the hollow ring
     if (kind === 'timed') for (let k = 0; k < 3; k++) {
       const a = Math.PI / 2 + k * Math.PI * 2 / 3, tick = new THREE.Mesh(new THREE.BoxGeometry(.09, .04, .09), topMat);
       tick.position.set(Math.cos(a) * .44, .05, -Math.sin(a) * .44); tick.rotation.y = a; holder.add(tick);
     }
     items.push({ kind: 'obj', obj: holder, y: 0, d: delayOf(p.x, p.y) + .1 });
-    return { top, topMat, gl, door: p.door, press: 0, target: 0, was: false, x: p.x, y: p.y };
+    return { top, topMat, gl, base: b, glowMats, model: !!plateA, door: p.door, press: 0, target: 0, was: false, x: p.x, y: p.y };
   });
   // start ring
   const sr = new THREE.Mesh(G.ring, new THREE.MeshBasicMaterial({ color: 0x8fd8ff, transparent: true, opacity: .55, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -937,7 +963,7 @@ function buildRoom() {
   const eg = glowSprite(0xffd27a, 1.6, .7); eg.position.y = .3;
   const motes = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(new Array(60).fill(0).flatMap(() => [(Math.random() - .5) * .5, Math.random() * 2.5, (Math.random() - .5) * .5]), 3)),
     new THREE.PointsMaterial({ color: 0xffe2a6, size: .05, transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false }));
-  ex.add(ring, beam, eg, motes); if (ASSET.exit) ex.add(modelClone(ASSET.exit)); roomGroup.add(ex);
+  ex.add(ring, beam, eg, motes); if (ASSET.exit) { ex.add(modelClone(ASSET.exit)); ring.visible = beam.visible = false; } roomGroup.add(ex);
   items.push({ kind: 'obj', obj: ex, y: 0, d: delayOf(R.exit.x, R.exit.y) + .15 });
   S.exitObj = { ex, ring, beam, motes, eg };
 
@@ -1380,13 +1406,14 @@ function frame(now) {
   }
   for (const d of S.doors) {
     d.open += (d.target - d.open) * Math.min(1, dt * 10);
-    d.g.position.y = -d.open * .97; d.seamMat.emissiveIntensity = 1.4 + d.open * 1.6 + Math.sin(T * 3) * .2;
+    d.g.position.y = -d.open * d.sink; d.seamMat.emissiveIntensity = 1.4 + d.open * 1.6 + Math.sin(T * 3) * .2;
     d.icon.rotation.y = T * 1.2; d.icon.position.y = 1.45 + Math.sin(T * 2) * .05; d.ig.material.opacity = .4 + d.open * .5;
     d.pips.forEach((m, k) => { const lit = k < d.timer; m.emissiveIntensity += ((lit ? 2.4 : .15) - m.emissiveIntensity) * Math.min(1, dt * 12); });
   }
   for (const p of S.plates) {
     p.press += (p.target - p.press) * Math.min(1, dt * 14);
-    p.top.position.y = .1 - p.press * .025; p.topMat.emissiveIntensity = .5 + p.press * 2.5 + (1 - p.press) * Math.max(0, Math.sin(T * 3)) * .4;
+    if (p.model) { p.base.position.y = -p.press * .025; const k = .55 + p.press * .9 + (1 - p.press) * Math.max(0, Math.sin(T * 3)) * .15; p.glowMats.forEach(m => m.color.setScalar(k)); }
+    p.top.position.y = (p.model ? .115 : .1) - p.press * .025; p.topMat.emissiveIntensity = .5 + p.press * 2.5 + (1 - p.press) * Math.max(0, Math.sin(T * 3)) * .4;
     p.gl.material.opacity = .2 + p.press * .6;
   }
   if (S.exitObj) {

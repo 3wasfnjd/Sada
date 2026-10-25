@@ -121,6 +121,8 @@ def export(o, name):
 
 roots = {o.name: o for o in scene.objects if o.parent is None}
 report = {}
+BUILT = {}
+SOURCE = list(scene.objects)
 for name in WANT:
     root = roots.get(name)
     if not root: print('[pieces] missing', name); continue
@@ -130,7 +132,7 @@ for name in WANT:
         frame = [p for p in parts if p not in panel]
         f, b1, a1 = build(name + '_frame', frame); d, b2, a2 = build(name + '_panel', panel)
         lo, hi = bounds([f, d]); place([f, d], lo, hi)
-        export(f, name + '_frame'); export(d, name + '_panel')
+        export(f, name + '_frame'); export(d, name + '_panel'); BUILT[name] = [f, d]
         report[name] = {'source_tris': b1 + b2, 'game_tris': a1 + a2, 'size': [round(v, 3) for v in (hi - lo)], 'materials': len(f.data.materials) + len(d.data.materials)}
         continue
     o, b, a = build(name, parts)
@@ -139,8 +141,39 @@ for name in WANT:
     elif name in WALLS:
         sx, sy = 1.0 / (hi.x - lo.x), 1.0 / (hi.y - lo.y); place([o], lo, hi, scale=(sx, sy, 1))
     else: place([o], lo, hi)
-    export(o, name)
+    export(o, name); BUILT[name] = [o]
     report[name] = {'source_tris': b, 'game_tris': a, 'size': [round(v, 3) for v in (hi - lo)], 'materials': len(o.data.materials)}
 
 json.dump(report, open(os.path.join(OUT, 'pieces.report.json'), 'w'), indent=1)
 print('[pieces]', json.dumps(report, indent=1))
+
+# ---------- preview: a small room laid out the way the game does (camera from +Z/glTF, 58 deg) ----------
+for o in SOURCE: o.hide_render = True
+for objs in BUILT.values():
+    for o in objs: o.hide_render = True
+def put(name, x, y):
+    for o in BUILT[name]:
+        c = o.copy(); c.data = o.data; scene.collection.objects.link(c); c.location = (x, -y, 0); c.hide_render = False
+W, H = 5, 6
+for x in range(W):
+    for y in range(H):
+        if y == 3: continue
+        put('FloorTile_1x1', x, y)
+for x in range(W):
+    if x == 2: put('CircleDoor', x, 3)
+    else: put('WallBlock_1x1', x, 3)
+put('FloorTile_1x1', 2, 3)
+for y in range(H): put('WallBlock_1x1', -1, y)
+put('AmberPlate', 0, 4); put('ExitRing', 3, 0)
+scene.render.engine = 'CYCLES'; scene.cycles.samples = 48; scene.cycles.device = 'CPU'
+scene.render.resolution_x, scene.render.resolution_y = 800, 1000
+world = bpy.data.worlds.new('Night'); scene.world = world; world.use_nodes = True
+world.node_tree.nodes['Background'].inputs['Color'].default_value = (.05, .04, .12, 1)
+sun = bpy.data.objects.new('Sun', bpy.data.lights.new('Sun', 'SUN')); scene.collection.objects.link(sun)
+sun.data.energy = 3; sun.data.color = (1, .85, .65); sun.rotation_euler = (math.radians(40), 0, math.radians(-30))
+cam = bpy.data.objects.new('Cam', bpy.data.cameras.new('Cam')); scene.collection.objects.link(cam); scene.camera = cam
+cam.data.lens = 35
+target = Vector(((W - 1) / 2, -(H - 1) / 2, 0)); el = math.radians(58)
+cam.location = target + Vector((0, -math.cos(el), math.sin(el))) * 11
+cam.rotation_euler = (target - cam.location).to_track_quat('-Z', 'Y').to_euler()
+scene.render.filepath = os.path.join(PREV, 'pieces_room.png'); bpy.ops.render.render(write_still=True)
