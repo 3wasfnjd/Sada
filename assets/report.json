@@ -1,0 +1,143 @@
+{
+ "door.glb": {
+  "bytes": 30228,
+  "meshes": 1,
+  "materials": [
+   "DoorStone"
+  ],
+  "triangles": 540,
+  "min": [
+   -0.49,
+   0,
+   -0.495
+  ],
+  "max": [
+   0.49,
+   0.95,
+   0.495
+  ],
+  "skins": 0,
+  "animations": {},
+  "vertex_colors": false
+ },
+ "exit.glb": {
+  "bytes": 31820,
+  "meshes": 1,
+  "materials": [
+   "ExitStone",
+   "ObeliskStone",
+   "ExitGlow",
+   "ObeliskStone.001",
+   "ExitGlow.001"
+  ],
+  "triangles": 548,
+  "min": [
+   -0.51,
+   0.0,
+   -0.47
+  ],
+  "max": [
+   0.51,
+   0.62,
+   0.47
+  ],
+  "skins": 0,
+  "animations": {},
+  "vertex_colors": false
+ },
+ "floor.glb": {
+  "bytes": 23472,
+  "meshes": 1,
+  "materials": [
+   "Sandstone"
+  ],
+  "triangles": 292,
+  "min": [
+   -0.48,
+   -0.5,
+   -0.48
+  ],
+  "max": [
+   0.48,
+   0,
+   0.48
+  ],
+  "skins": 0,
+  "animations": {},
+  "vertex_colors": true
+ },
+ "hero.glb": {
+  "bytes": 304492,
+  "meshes": 1,
+  "materials": [
+   "Copper",
+   "Scarf",
+   "Face",
+   "Eyes",
+   "Tassel"
+  ],
+  "triangles": 7408,
+  "min": [
+   -0.224,
+   0.006,
+   -0.245
+  ],
+  "max": [
+   0.224,
+   1.035,
+   0.215
+  ],
+  "skins": 1,
+  "animations": {
+   "bump": 0.167,
+   "cheer": 0.8,
+   "hop": 0.167,
+   "idle": 2,
+   "land": 0.4
+  },
+  "vertex_colors": false
+ },
+ "plate.glb": {
+  "bytes": 17976,
+  "meshes": 1,
+  "materials": [
+   "PlateMetal",
+   "Brass"
+  ],
+  "triangles": 372,
+  "min": [
+   -0.41,
+   -0.0,
+   -0.41
+  ],
+  "max": [
+   0.41,
+   0.066,
+   0.41
+  ],
+  "skins": 0,
+  "animations": {},
+  "vertex_colors": false
+ },
+ "wall.glb": {
+  "bytes": 34240,
+  "meshes": 1,
+  "materials": [
+   "Stone"
+  ],
+  "triangles": 432,
+  "min": [
+   -0.52,
+   0,
+   -0.52
+  ],
+  "max": [
+   0.52,
+   1,
+   0.52
+  ],
+  "skins": 0,
+  "animations": {},
+  "vertex_colors": true
+ }
+}
