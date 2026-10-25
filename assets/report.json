@@ -84,7 +84,7 @@
   "vertex_colors": true
  },
  "hero.glb": {
-  "bytes": 533476,
+  "bytes": 567084,
   "meshes": 1,
   "materials": [
    "H_boot",
@@ -101,15 +101,15 @@
    "H_hair",
    "H_gem"
   ],
-  "triangles": 12192,
+  "triangles": 12988,
   "min": [
-   -0.261,
+   -0.378,
    0,
-   -0.31
+   -0.321
   ],
   "max": [
-   0.272,
-   0.928,
+   0.256,
+   1.012,
    0.23
   ],
   "skins": 1,
