@@ -1,7 +1,8 @@
 {
  "name": "gnome",
  "source_triangles": 507644,
- "game_triangles": 48592,
+ "game_triangles": 6000,
+ "voxel_faces": 24296,
  "texture": 1024,
  "size_m": 0.95
 }
