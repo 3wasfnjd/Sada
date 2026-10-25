@@ -1,0 +1,8 @@
+{
+ "name": "gnome_quest",
+ "source_triangles": 507644,
+ "game_triangles": 16000,
+ "voxel_faces": 69538,
+ "texture": 2048,
+ "size_m": 0.95
+}
