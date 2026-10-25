@@ -105,9 +105,10 @@ sun.data.energy = 3; sun.rotation_euler = (math.radians(45), 0, math.radians(-30
 cam = bpy.data.objects.new('Cam', bpy.data.cameras.new('Cam')); scene.collection.objects.link(cam); scene.camera = cam
 h = hi.z - lo.z if not cfg['height'] else cfg['height']
 scene.cycles.samples = 48; scene.render.resolution_x, scene.render.resolution_y = 1200, 700
-for tag, rz in (('side', 0), ('front', 90), ('back', -90)):
+for o in (high, low): o.rotation_mode = 'XYZ'   # glTF import uses quaternions
+for tag, rz, d, z in (('side', 0, 3.2, .6), ('front', 90, 3.2, .6), ('back', -90, 3.2, .6), ('face', 90, 1.6, .72)):
     for o in (high, low): o.rotation_euler = (0, 0, math.radians(rz))
-    cam.location = (0, -size * 3.2, h * .6); cam.rotation_euler = (math.radians(88), 0, 0)
+    cam.location = (0, -size * d, h * z); cam.rotation_euler = (math.radians(88), 0, 0)
     scene.render.filepath = os.path.join(PREV, f'{NAME}_compare_{tag}.png'); bpy.ops.render.render(write_still=True)
 
 report = {'name': NAME, 'source_triangles': src_tris, 'game_triangles': low_tris, 'voxel_faces': voxel_faces, 'texture': T, 'size_m': round(size, 3)}
