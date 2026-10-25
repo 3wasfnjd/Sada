@@ -44,7 +44,8 @@ jobs:
         run: |
           set -e
           SRC="${{ github.sha }}"
-          mkdir /tmp/out && cp build/*.apk build/*.sha256 build/*.txt /tmp/out/
+          mkdir /tmp/out && cp build/*.txt /tmp/out/
+          cp build/*.apk /tmp/out/Sada-Quest.apk && (cd /tmp/out && sha256sum Sada-Quest.apk > Sada-Quest.apk.sha256)
           cd /tmp/out
           git init -q -b quest-apk
           printf 'Sada Quest sideload build %s from %s\n' "${{ github.run_number }}" "$SRC" > README.md
