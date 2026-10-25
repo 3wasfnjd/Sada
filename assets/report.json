@@ -1,91 +1,116 @@
 {
  "door.glb": {
-  "bytes": 30228,
+  "bytes": 100288,
   "meshes": 1,
   "materials": [
-   "DoorStone"
+   "Wood"
   ],
-  "triangles": 540,
+  "triangles": 1404,
   "min": [
-   -0.49,
-   0,
-   -0.495
+   -0.35,
+   0.02,
+   -0.078
   ],
   "max": [
-   0.49,
-   0.95,
-   0.495
+   0.35,
+   0.88,
+   0.078
   ],
   "skins": 0,
   "animations": {},
-  "vertex_colors": false
+  "vertex_colors": true
  },
- "exit.glb": {
-  "bytes": 31820,
+ "door_frame.glb": {
+  "bytes": 261832,
   "meshes": 1,
   "materials": [
-   "ExitStone",
-   "ObeliskStone",
-   "ExitGlow",
-   "ObeliskStone.001",
-   "ExitGlow.001"
+   "PurpleStone.001"
   ],
-  "triangles": 548,
+  "triangles": 3268,
+  "min": [
+   -0.515,
+   -0.028,
+   -0.22
+  ],
+  "max": [
+   0.5,
+   1.07,
+   0.3
+  ],
+  "skins": 0,
+  "animations": {},
+  "vertex_colors": true
+ },
+ "exit.glb": {
+  "bytes": 189016,
+  "meshes": 1,
+  "materials": [
+   "ExitStone"
+  ],
+  "triangles": 2508,
   "min": [
    -0.51,
-   0.0,
-   -0.47
+   -0.0,
+   -0.496
   ],
   "max": [
    0.51,
-   0.62,
-   0.47
+   0.09,
+   0.496
   ],
   "skins": 0,
   "animations": {},
-  "vertex_colors": false
+  "vertex_colors": true
  },
  "floor.glb": {
-  "bytes": 23472,
+  "bytes": 148392,
   "meshes": 1,
   "materials": [
    "Sandstone"
   ],
-  "triangles": 292,
+  "triangles": 1860,
   "min": [
-   -0.48,
+   -0.495,
    -0.5,
-   -0.48
+   -0.503
   ],
   "max": [
-   0.48,
-   0,
-   0.48
+   0.475,
+   0.032,
+   0.475
   ],
   "skins": 0,
   "animations": {},
   "vertex_colors": true
  },
  "hero.glb": {
-  "bytes": 304492,
+  "bytes": 533476,
   "meshes": 1,
   "materials": [
-   "Copper",
-   "Scarf",
-   "Face",
-   "Eyes",
-   "Tassel"
+   "H_boot",
+   "H_gold",
+   "H_pants",
+   "H_leather",
+   "H_skin",
+   "H_leather_d",
+   "H_red",
+   "H_white",
+   "H_iris",
+   "H_ink",
+   "H_brow",
+   "H_hair",
+   "H_gem"
   ],
-  "triangles": 7408,
+  "triangles": 12192,
   "min": [
-   -0.224,
-   0.006,
-   -0.245
+   -0.261,
+   0,
+   -0.31
   ],
   "max": [
-   0.224,
-   1.035,
-   0.215
+   0.272,
+   0.928,
+   0.23
   ],
   "skins": 1,
   "animations": {
@@ -98,43 +123,42 @@
   "vertex_colors": false
  },
  "plate.glb": {
-  "bytes": 17976,
+  "bytes": 152276,
   "meshes": 1,
   "materials": [
-   "PlateMetal",
-   "Brass"
+   "PlateMetal"
   ],
-  "triangles": 372,
+  "triangles": 1880,
   "min": [
-   -0.41,
-   -0.0,
-   -0.41
+   -0.395,
+   0,
+   -0.395
   ],
   "max": [
-   0.41,
-   0.066,
-   0.41
+   0.395,
+   0.064,
+   0.395
   ],
   "skins": 0,
   "animations": {},
-  "vertex_colors": false
+  "vertex_colors": true
  },
  "wall.glb": {
-  "bytes": 34240,
+  "bytes": 333380,
   "meshes": 1,
   "materials": [
-   "Stone"
+   "PurpleStone"
   ],
-  "triangles": 432,
+  "triangles": 4176,
   "min": [
-   -0.52,
-   0,
-   -0.52
+   -0.514,
+   -0.026,
+   -0.492
   ],
   "max": [
-   0.52,
-   1,
-   0.52
+   0.531,
+   1.058,
+   0.539
   ],
   "skins": 0,
   "animations": {},
