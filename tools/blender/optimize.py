@@ -4,11 +4,12 @@
 #   5) export .glb with the baked textures, 6) render source vs result side by side.
 # Run:  blender -b -P tools/blender/optimize.py -- <source file> <out dir> <preview dir> [json settings]
 import bpy, sys, os, json, math
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mathutils import Vector
 
 argv = sys.argv[sys.argv.index('--') + 1:]
 SRC, OUT, PREV = argv[0], os.path.abspath(argv[1]), os.path.abspath(argv[2])
-cfg = {'name': os.path.splitext(os.path.basename(SRC))[0], 'faces': 3000, 'height': None, 'texture': 1024, 'voxel': 0.01}
+cfg = {'name': os.path.splitext(os.path.basename(SRC))[0], 'faces': 3000, 'height': None, 'texture': 1024, 'voxel': 0.01, 'turn': 0, 'rig': None}
 if len(argv) > 3 and os.path.exists(argv[3]): cfg.update(json.load(open(argv[3])))
 os.makedirs(OUT, exist_ok=True); os.makedirs(PREV, exist_ok=True)
 NAME = cfg['name']
@@ -32,6 +33,8 @@ sel(meshes); bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
 bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
 if len(meshes) > 1: bpy.ops.object.join()
 high = bpy.context.active_object; high.name = 'High'
+high.rotation_mode = 'XYZ'
+if cfg['turn']: high.rotation_euler = (0, 0, math.radians(cfg['turn'])); bpy.ops.object.transform_apply(rotation=True)
 src_tris = sum(len(p.vertices) - 2 for p in high.data.polygons)
 
 # normalise: feet on the ground, centred, optional target height (m)
@@ -91,13 +94,20 @@ nt.links.new(tc.outputs['Color'], bsdf.inputs['Base Color'])
 nt.links.new(tn.outputs['Color'], nm.inputs['Color']); nt.links.new(nm.outputs['Normal'], bsdf.inputs['Normal'])
 for img in (img_col, img_nrm): img.pack()
 
+# optional rig (small biped: hat, head, spine, arms, legs) + in-place game clips
+arm = None
+if cfg['rig']:
+    import rig_small
+    arm = rig_small.build(low, hi.z - lo.z if not cfg['height'] else cfg['height'], cfg['rig'])
+
 # export
-sel([low])
+sel([low] + ([arm] if arm else []), active=arm or low)
 bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, NAME + '.glb'), export_format='GLB', use_selection=True,
-                          export_apply=True, export_yup=True, export_image_format='JPEG')
+                          export_apply=False if arm else True, export_yup=True, export_image_format='JPEG',
+                          export_animations=bool(arm), **({'export_animation_mode': 'ACTIONS', 'export_force_sampling': True} if arm else {}))
 
 # preview: source (left) vs game model (right)
-high.location.x = -size * .65; low.location.x = size * .65
+high.location.x = -size * .65; (arm or low).location.x = size * .65
 world = bpy.data.worlds.new('W'); scene.world = world; world.use_nodes = True
 world.node_tree.nodes['Background'].inputs['Color'].default_value = (.6, .6, .63, 1)
 sun = bpy.data.objects.new('Sun', bpy.data.lights.new('Sun', 'SUN')); scene.collection.objects.link(sun)
@@ -106,11 +116,18 @@ cam = bpy.data.objects.new('Cam', bpy.data.cameras.new('Cam')); scene.collection
 h = hi.z - lo.z if not cfg['height'] else cfg['height']
 scene.cycles.samples = 48; scene.render.resolution_x, scene.render.resolution_y = 1200, 700
 for o in (high, low): o.rotation_mode = 'XYZ'   # glTF import uses quaternions
-for tag, rz, d, z in (('side', 0, 3.2, .6), ('front', 90, 3.2, .6), ('back', -90, 3.2, .6), ('face', 90, 1.6, .72)):
-    for o in (high, low): o.rotation_euler = (0, 0, math.radians(rz))
+for tag, rz, d, z in (('front', 0, 3.2, .6), ('side', 90, 3.2, .6), ('back', 180, 3.2, .6)):
+    for o in (high, (arm or low)): o.rotation_euler = (0, 0, math.radians(rz))
     cam.location = (0, -size * d, h * z); cam.rotation_euler = (math.radians(88), 0, 0)
     scene.render.filepath = os.path.join(PREV, f'{NAME}_compare_{tag}.png'); bpy.ops.render.render(write_still=True)
 
+if arm:   # pose previews to check the skin weights
+    high.hide_render = True; (arm).location.x = 0; arm.rotation_euler = (0, 0, 0)
+    for act, f in (('idle', 0), ('hop', 5), ('cheer', 20), ('land', 3)):
+        arm.animation_data.action = bpy.data.actions[act]; scene.frame_set(f)
+        cam.location = (size * .5, -size * 2.6, h * .55); cam.rotation_euler = (math.radians(86), 0, math.radians(10))
+        scene.render.resolution_x, scene.render.resolution_y = 700, 700
+        scene.render.filepath = os.path.join(PREV, f'{NAME}_pose_{act}.png'); bpy.ops.render.render(write_still=True)
 report = {'name': NAME, 'source_triangles': src_tris, 'game_triangles': low_tris, 'voxel_faces': voxel_faces, 'texture': T, 'size_m': round(size, 3)}
 json.dump(report, open(os.path.join(OUT, NAME + '.report.json'), 'w'), indent=1)
 print('[optimize]', report)
