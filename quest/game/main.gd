@@ -9,7 +9,9 @@ extends Node3D
 ##   right trigger        point at a cell: walk there (on yourself: wait one tick)
 ##   A                    wait one tick          B   undo one step
 ##   X                    hint (limited)         Y   one loop back
-##   grip (either)        bring the table in front of you
+##   left stick           x: turn the table, y: bigger / smaller
+##   grip tap             bring the table in front of you
+##   grip hold (one)      carry the table; both grips: pinch to resize and turn
 ## Desktop (no headset): arrows, space = wait, Z = undo, H = hint, Backspace = loop back.
 
 const Logic = preload("res://core/sada_logic.gd")
@@ -47,6 +49,11 @@ var placed := false
 var _prev := {}
 var _stick_t := 0.0
 var _place_frames := 0
+const ZOOM_MIN := 0.35
+const ZOOM_MAX := 3.0
+var zoom := 1.0
+var _grip := {"left": {"held": false, "t": 0.0, "moved": false}, "right": {"held": false, "t": 0.0, "moved": false}}
+var _drag := {}            # one hand: {hand, offset}; two hands: {d0, a0, z0, yaw0, mid0, pos0}
 
 
 func _ready() -> void:
@@ -87,6 +94,8 @@ func _ready() -> void:
 				if h == "right": model.set("render_model_type", 1)
 				grip.add_child(model)
 		_passthrough()
+		# the list of blend modes is only reliable once the session runs (same as Mafateeh)
+		xr.connect("session_begun", _passthrough)
 		xr.connect("pose_recentered", func(): placed = false)
 		_make_ray()
 	else:
@@ -104,9 +113,11 @@ func _ready() -> void:
 	load_room(n)
 
 
+## AR: the real room is seen through the headset cameras; only the table is drawn
 func _passthrough() -> void:
 	if xr.get_supported_environment_blend_modes().has(XRInterface.XR_ENV_BLEND_MODE_ALPHA_BLEND):
 		get_viewport().transparent_bg = true
+		env.background_mode = Environment.BG_COLOR
 		env.background_color = Color(0, 0, 0, 0)
 		xr.environment_blend_mode = XRInterface.XR_ENV_BLEND_MODE_ALPHA_BLEND
 
@@ -132,9 +143,19 @@ func place_table() -> void:
 	var fwd := -t.basis.z; fwd.y = 0
 	if fwd.length() < 0.1: fwd = Vector3(0, 0, -1)
 	fwd = fwd.normalized()
-	table.global_position = t.origin + fwd * 0.5 + Vector3(0, -0.42, 0)
-	table.global_basis = Basis(Vector3.UP, atan2(-fwd.x, -fwd.z))
+	table.global_position = t.origin + fwd * (0.42 + 0.12 * zoom) + Vector3(0, -0.42, 0)
+	table.global_basis = Basis(Vector3.UP, atan2(-fwd.x, -fwd.z)).scaled(Vector3.ONE * zoom)
 	placed = true
+
+
+## size and turn of the table: kept in `table` (the room inside keeps its own fit)
+func set_zoom(z: float) -> void:
+	zoom = clampf(z, ZOOM_MIN, ZOOM_MAX)
+	table.basis = Basis(Vector3.UP, table.rotation.y).scaled(Vector3.ONE * zoom)
+
+
+func turn_table(r: float) -> void:
+	table.basis = Basis(Vector3.UP, wrapf(table.rotation.y + r, -PI, PI)).scaled(Vector3.ONE * zoom)
 
 
 func _fit() -> void:
@@ -329,7 +350,17 @@ func _pressed(h: String, b: String) -> bool:
 
 
 func _xr_input(dt: float) -> void:
-	if _pressed("left", "grip_click") or _pressed("right", "grip_click"): place_table()
+	_grips(dt)
+	# left stick: x turns the table, y makes it bigger / smaller
+	var lc: XRController3D = hands.get("left")
+	if lc:
+		var s := lc.get_vector2("primary")
+		if absf(s.x) > 0.25: turn_table(-signf(s.x) * (absf(s.x) - 0.25) / 0.75 * 1.8 * dt)
+		if absf(s.y) > 0.25 and absf(s.y) > absf(s.x) * 0.5:
+			set_zoom(zoom * exp(signf(s.y) * (absf(s.y) - 0.25) / 0.75 * 1.1 * dt))
+			_zoom_dirty = true
+		elif _zoom_dirty:
+			_zoom_dirty = false; _save()
 	if _pressed("right", "ax_button"): do_action("W")
 	if _pressed("right", "by_button"): undo()
 	if _pressed("left", "ax_button"): hint()
@@ -349,6 +380,49 @@ func _xr_input(dt: float) -> void:
 		if _pressed("right", "trigger_click"):
 			var hit = _ray_cell(rc)
 			if hit != null: walk_to(hit)
+
+
+var _zoom_dirty := false
+
+## grip: tap = bring the table in front of you; hold one = carry it;
+## hold both = pinch: spread/close the hands to resize, turn them to rotate
+func _grips(dt: float) -> void:
+	var held := []
+	for h in ["left", "right"]:
+		var c: XRController3D = hands.get(h)
+		var g: Dictionary = _grip[h]
+		var now: bool = c != null and c.get_float("grip") > 0.6
+		if now and not g.held:
+			g.held = true; g.t = 0.0; g.moved = false
+		elif now:
+			g.t += dt
+		elif g.held:
+			g.held = false
+			if g.t < 0.3 and not g.moved and _drag.is_empty(): place_table()
+		if g.held: held.append(h)
+	if held.size() == 2:
+		var a: Vector3 = hands.left.global_position; var b: Vector3 = hands.right.global_position
+		var v := b - a; v.y = 0
+		var mid := (a + b) / 2.0
+		if not _drag.has("d0"):
+			_drag = {"d0": maxf(0.05, v.length()), "a0": atan2(v.x, v.z), "z0": zoom, "yaw0": table.rotation.y, "mid0": mid, "pos0": table.global_position}
+			_grip.left.moved = true; _grip.right.moved = true
+		set_zoom(_drag.z0 * maxf(0.05, v.length()) / _drag.d0)
+		var turn := wrapf(atan2(v.x, v.z) - _drag.a0, -PI, PI)
+		table.basis = Basis(Vector3.UP, _drag.yaw0 + turn).scaled(Vector3.ONE * zoom)
+		table.global_position = _drag.pos0 + (mid - _drag.mid0)
+		_zoom_dirty = true
+	elif held.size() == 1 and _grip[held[0]].t >= 0.3:
+		var c: XRController3D = hands[held[0]]
+		if _drag.get("hand", "") != held[0]:
+			_drag = {"hand": held[0], "offset": table.global_position - c.global_position}
+			_grip[held[0]].moved = true
+		table.global_position = c.global_position + _drag.offset
+	elif held.is_empty() and not _drag.is_empty():
+		_drag = {}
+		if _zoom_dirty: _zoom_dirty = false; _save()
+	elif held.size() == 1 and _drag.has("d0"):
+		_drag = {}
 
 
 func _move_view(v: Vector2) -> void:
@@ -454,11 +528,12 @@ func _load() -> void:
 	if c.load(SAVE) == OK:
 		run_seed = int(c.get_value("run", "seed", 0)); n = int(c.get_value("run", "room", 1))
 		help = int(c.get_value("run", "help", START_HELP))
+		zoom = clampf(float(c.get_value("view", "zoom", 1.0)), ZOOM_MIN, ZOOM_MAX)
 	if run_seed == 0:
 		randomize(); run_seed = randi_range(1, 1 << 30)
 
 
 func _save() -> void:
 	var c := ConfigFile.new()
-	c.set_value("run", "seed", run_seed); c.set_value("run", "room", n); c.set_value("run", "help", help)
+	c.set_value("run", "seed", run_seed); c.set_value("run", "room", n); c.set_value("run", "help", help); c.set_value("view", "zoom", zoom)
 	c.save(SAVE)

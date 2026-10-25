@@ -51,6 +51,21 @@ func _run() -> void:
 	var before: int = game.acts.size()
 	game.undo()
 	if game.acts.size() != before - 1: fail("undo did not remove a step")
+	# AR table: resize + turn keep pointing exact (a ray from above lands on the cell under it)
+	game.set_zoom(2.2); game.turn_table(0.7)
+	await process_frame
+	var b: Node3D = game.board
+	var target := Vector2i(1, 2)
+	var top: Vector3 = b.global_transform * (b.cell(target.x, target.y) + Vector3(0, 3, 0))
+	var bot: Vector3 = b.global_transform * b.cell(target.x, target.y)
+	var inv: Transform3D = b.global_transform.affine_inverse()
+	var lo := inv * top; var ld := inv.basis * (bot - top).normalized()
+	var got: Vector2i = b.to_cell(lo + ld * (-lo.y / ld.y))
+	if got != target: fail("pointing after zoom/turn: got %s want %s" % [got, target])
+	if absf(game.table.scale.x - 2.2) > 0.01: fail("zoom not applied")
+	game.set_zoom(99.0)
+	if game.zoom > game.ZOOM_MAX: fail("zoom not clamped")
+	game.set_zoom(1.0)
 	if shot != "":
 		game.load_room(6); await process_frame
 		game.hint(); await _wait(0.4)
