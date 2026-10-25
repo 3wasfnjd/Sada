@@ -49,12 +49,17 @@ low = high.copy(); low.data = high.data.copy(); low.name = NAME; scene.collectio
 low.data.materials.clear()
 sel([low])
 low.data.remesh_voxel_size = max(cfg['voxel'] * size, 1e-4); bpy.ops.object.voxel_remesh()
+voxel_faces = len(low.data.polygons)
 try:
-    bpy.ops.object.quadriflow_remesh(target_faces=int(cfg['faces']), use_preserve_sharp=True, use_mesh_symmetry=False, seed=0)
+    r = bpy.ops.object.quadriflow_remesh(target_faces=int(cfg['faces']), use_preserve_sharp=True, use_mesh_symmetry=False, seed=0)
+    print('[optimize] QuadriFlow:', r, voxel_faces, '->', len(low.data.polygons))
 except Exception as e:
-    print('[optimize] QuadriFlow failed, falling back to planar+collapse decimate:', e)
-    m = low.modifiers.new('dec', 'DECIMATE'); m.ratio = min(1, cfg['faces'] / max(1, len(low.data.polygons)))
+    print('[optimize] QuadriFlow error:', e)
+if len(low.data.polygons) > cfg['faces'] * 1.5:   # QuadriFlow did not reach the target: collapse on the clean voxel mesh
+    print('[optimize] falling back to collapse decimate from', len(low.data.polygons))
+    m = low.modifiers.new('dec', 'DECIMATE'); m.decimate_type = 'COLLAPSE'; m.ratio = cfg['faces'] / len(low.data.polygons)
     bpy.ops.object.modifier_apply(modifier='dec')
+method = 'quadriflow' if len(low.data.polygons) <= cfg['faces'] * 1.5 and 'dec' not in [] else 'decimate'
 for p in low.data.polygons: p.use_smooth = True
 low_tris = sum(len(p.vertices) - 2 for p in low.data.polygons)
 
@@ -99,10 +104,12 @@ sun = bpy.data.objects.new('Sun', bpy.data.lights.new('Sun', 'SUN')); scene.coll
 sun.data.energy = 3; sun.rotation_euler = (math.radians(45), 0, math.radians(-30))
 cam = bpy.data.objects.new('Cam', bpy.data.cameras.new('Cam')); scene.collection.objects.link(cam); scene.camera = cam
 h = hi.z - lo.z if not cfg['height'] else cfg['height']
-cam.location = (0, -size * 3.2, h * .6); cam.rotation_euler = (math.radians(88), 0, 0)
 scene.cycles.samples = 48; scene.render.resolution_x, scene.render.resolution_y = 1200, 700
-scene.render.filepath = os.path.join(PREV, NAME + '_compare.png'); bpy.ops.render.render(write_still=True)
+for tag, rz in (('side', 0), ('front', 90), ('back', -90)):
+    for o in (high, low): o.rotation_euler = (0, 0, math.radians(rz))
+    cam.location = (0, -size * 3.2, h * .6); cam.rotation_euler = (math.radians(88), 0, 0)
+    scene.render.filepath = os.path.join(PREV, f'{NAME}_compare_{tag}.png'); bpy.ops.render.render(write_still=True)
 
-report = {'name': NAME, 'source_triangles': src_tris, 'game_triangles': low_tris, 'texture': T, 'size_m': round(size, 3)}
+report = {'name': NAME, 'source_triangles': src_tris, 'game_triangles': low_tris, 'voxel_faces': voxel_faces, 'texture': T, 'size_m': round(size, 3)}
 json.dump(report, open(os.path.join(OUT, NAME + '.report.json'), 'w'), indent=1)
 print('[optimize]', report)
