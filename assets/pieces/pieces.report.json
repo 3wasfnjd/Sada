@@ -1,0 +1,112 @@
+{
+ "FloorTile_1x1": {
+  "source_tris": 8852,
+  "game_tris": 8852,
+  "size": [
+   1.238,
+   1.132,
+   0.32
+  ],
+  "materials": 1
+ },
+ "WallBlock_1x1": {
+  "source_tris": 3476,
+  "game_tris": 3476,
+  "size": [
+   0.698,
+   0.675,
+   0.941
+  ],
+  "materials": 1
+ },
+ "CircleDoor": {
+  "source_tris": 7288,
+  "game_tris": 7288,
+  "size": [
+   1.226,
+   0.522,
+   1.789
+  ],
+  "materials": 3
+ },
+ "TriangleDoor": {
+  "source_tris": 6352,
+  "game_tris": 6352,
+  "size": [
+   1.278,
+   0.511,
+   1.784
+  ],
+  "materials": 3
+ },
+ "SquareDoor": {
+  "source_tris": 6364,
+  "game_tris": 6364,
+  "size": [
+   1.257,
+   0.52,
+   1.787
+  ],
+  "materials": 3
+ },
+ "DiamondDoor": {
+  "source_tris": 6364,
+  "game_tris": 6364,
+  "size": [
+   1.231,
+   0.507,
+   1.784
+  ],
+  "materials": 3
+ },
+ "AmberPlate": {
+  "source_tris": 7704,
+  "game_tris": 7704,
+  "size": [
+   0.725,
+   0.725,
+   0.102
+  ],
+  "materials": 2
+ },
+ "PinkPlate": {
+  "source_tris": 7576,
+  "game_tris": 7576,
+  "size": [
+   0.725,
+   0.725,
+   0.102
+  ],
+  "materials": 2
+ },
+ "MintPlate": {
+  "source_tris": 7588,
+  "game_tris": 7588,
+  "size": [
+   0.725,
+   0.725,
+   0.102
+  ],
+  "materials": 2
+ },
+ "VioletPlate": {
+  "source_tris": 7588,
+  "game_tris": 7588,
+  "size": [
+   0.725,
+   0.725,
+   0.102
+  ],
+  "materials": 2
+ },
+ "ExitRing": {
+  "source_tris": 18816,
+  "game_tris": 18774,
+  "size": [
+   1.394,
+   1.287,
+   2.2
+  ],
+  "materials": 3
+ }
+}
