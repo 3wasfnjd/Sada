@@ -5,6 +5,8 @@ extends SceneTree
 ## through the real game scene from the player's height.
 
 var out := "user://preview"
+var hero_script := "res://game/lowpoly/hero.gd"
+var only_hero := false
 
 func _init() -> void:
 	_run.call_deferred()
@@ -31,16 +33,18 @@ func _light(parent: Node, ambient := 0.4) -> void:
 func _run() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="): out = a.substr(6)
+		if a.begins_with("--hero="): hero_script = "res://game/lowpoly/%s.gd" % a.substr(7)
+		if a == "--only-hero": only_hero = true
 	DirAccess.make_dir_recursive_absolute(out)
 	await _hero_sheet()
-	await _game_shots()
+	if not only_hero: await _game_shots()
 	quit(0)
 
 
 func _hero_sheet() -> void:
 	var stage := Node3D.new(); root.add_child(stage)
 	_light(stage)
-	var Hero = load("res://game/lowpoly/hero.gd")
+	var Hero = load(hero_script)
 	var gm := StandardMaterial3D.new()
 	gm.albedo_color = Color(0.56, 0.85, 1.0, 0.5); gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	gm.emission_enabled = true; gm.emission = Color(0.56, 0.85, 1.0); gm.emission_energy_multiplier = 0.6
@@ -72,6 +76,13 @@ func _hero_sheet() -> void:
 	await _shot(out + "/hero_face.png")
 	cam.position = Vector3(-0.6 + 1.2, 0.72, 1.6); cam.look_at(Vector3(0.6, 0.62, 0))
 	await _shot(out + "/hero_face_joy.png")
+	# side view (three-quarter)
+	cam.fov = 30; cam.position = Vector3(0, 0.9, 4.2); cam.look_at(Vector3(0, 0.45, 0))
+	for h in heroes: h.rotation.y = PI / 2 * 0.8
+	await _wait(0.2)
+	await _shot(out + "/hero_side.png")
+	for h in heroes: h.rotation.y = 0.0
+	heroes[heroes.size() - 1].rotation.y = PI
 	# walk pose
 	for h in heroes: h.play("walk")
 	await _wait(0.12)
