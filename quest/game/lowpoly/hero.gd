@@ -1,6 +1,7 @@
 extends Node3D
 ## The hero, built in code in the low-poly faceted style: a Saudi elder (شايب) with a red and
-## white shemagh tied round his head (the tail hangs at the back and swings), a white beard and
+## white shemagh worn over the head and shoulders under a black double iqal (one end hangs on his
+## chest and swings, the other is thrown back over the shoulder), a white beard and
 ## moustache, a white thobe under a brown bisht with gold trim, and a cane.
 ## Faces +z. About 0.85 cells tall. All motion is procedural (no skeleton):
 ##   play("idle" | "walk" | "hop" | "bump" | "land" | "cheer")
@@ -13,8 +14,9 @@ const SKIN := Color(0.82, 0.60, 0.44)
 const WHITE := Color(0.96, 0.95, 0.91)
 const BEARD := Color(0.93, 0.92, 0.89)
 const RED := Color(0.80, 0.15, 0.15)
-const BISHT := Color(0.40, 0.27, 0.17)
-const GOLD := Color(0.90, 0.70, 0.30)
+const BISHT := Color(0.12, 0.12, 0.13)
+const IQAL := Color(0.07, 0.07, 0.08)
+const GOLD := Color(0.86, 0.68, 0.32)
 const EYE := Color(0.16, 0.10, 0.07)
 const MOUTH := Color(0.36, 0.14, 0.12)
 const SANDAL := Color(0.36, 0.23, 0.14)
@@ -67,13 +69,20 @@ func build(as_ghost: bool, ghost_material: Material = null) -> void:
 	body.add_child(bisht)
 	head = Node3D.new(); head.position = NECK; body.add_child(head)
 	head.add_child(_mesh(_head_mesh()))
+	var drape := _mesh(_drape_mesh())
+	if not ghost:
+		var dm := LP.material().duplicate() as StandardMaterial3D
+		dm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		drape.material_override = dm
+	head.add_child(drape)
 	_face_parts()
-	var knot := Node3D.new(); knot.position = HC + Vector3(-0.08, 0.1, -0.13); head.add_child(knot)
-	var parent: Node3D = knot
+	# the shemagh's free end on his left: hangs beside the face, then onto the chest
+	var pivot := Node3D.new(); pivot.position = Vector3(0.135, -0.01, 0.125); head.add_child(pivot)
+	var parent: Node3D = pivot
 	for k in 2:
 		var seg := Node3D.new()
-		seg.position = Vector3(0, -0.005, -0.01) if k == 0 else Vector3(0, -0.1, -0.005)
-		seg.add_child(_mesh(_tail_mesh(k)))
+		seg.position = Vector3.ZERO if k == 0 else Vector3(0.0, -0.17, 0.0)
+		seg.add_child(_mesh(_flap_mesh(k)))
 		parent.add_child(seg); tail.append(seg); parent = seg
 	arm_l = _arm(-1); arm_r = _arm(1)
 	foot_l = _foot(-1); foot_r = _foot(1)
@@ -112,9 +121,9 @@ func _torso_mesh() -> ArrayMesh:
 ## the bisht: an open cloak over the shoulders, gold trim down both front edges
 func _bisht_mesh() -> ArrayMesh:
 	var lp := _lp(12)
-	var gap := 0.62   # front opening (radians each side of +z)
+	var gap := 0.5   # front opening (radians each side of +z)
 	var n := 9
-	var levels := [[0.1, 0.19], [0.28, 0.17], [0.42, 0.155], [0.47, 0.11]]
+	var levels := [[0.05, 0.2], [0.24, 0.175], [0.41, 0.158], [0.47, 0.11]]
 	var pts := []
 	for L in levels:
 		var row := []
@@ -152,33 +161,74 @@ func _head_mesh() -> ArrayMesh:
 		lp.xf = Transform3D.IDENTITY
 	lp.blob(HC + Vector3(0, -0.13, 0.05), Vector3(0.14, 0.095, 0.125), 0.08, BEARD, 1)   # beard
 	lp.blob(HC + Vector3(0, -0.2, 0.08), Vector3(0.07, 0.06, 0.07), 0.15, BEARD)          # beard point
-	# the shemagh: a red-and-white check band round the forehead and a cap over the head
-	var check := func(ctr: Vector3, _n: Vector3) -> Color:
-		var a := atan2(ctr.x - HC.x, ctr.z - HC.z)
-		var ia := int(floor((a + PI) / (TAU / 30.0)))
-		var iy := int(floor((ctr.y - HC.y + 0.5) / 0.03))
-		return WHITE if (ia % 3 == 0 or iy % 3 == 0) else RED
-	lp.blob(HC + Vector3(0, 0.06, -0.015), HR * Vector3(1.08, 1.0, 1.1), 0.02, check, 2, 0.12)
-	# the cloth falls over the back of the head down to the neck
-	lp.blob(HC + Vector3(0, -0.01, -0.012), HR * Vector3(1.09, 1.0, 1.1), 0.02, check, 2, -0.75,
-		func(d: Vector3) -> bool: return d.z < -0.35 and d.y < 0.6)
-	var band := []
-	var ys := [0.065, 0.09, 0.115, 0.14, 0.16]
-	for j in ys.size():
-		var r: float = [1.1, 1.13, 1.14, 1.13, 1.09][j]
-		band.append([HC.y + ys[j], LP.circle(32, HR.x * r, HR.z * r * 1.03, 0.0, 0, -0.012)])
-	lp.loft(band, check, true, false, Vector2(0, -0.012))
-	lp.blob(HC + Vector3(-0.08, 0.1, -0.13), Vector3(0.05, 0.04, 0.045), 0.2, RED)   # the knot
+	# the shemagh: fine red check on white, over the head, framing the face, down to the shoulders
+	var check := _check()
+	lp.blob(HC + Vector3(0, 0.012, -0.006), HR * Vector3(1.13, 1.08, 1.13), 0.015, check, 2, -0.62,
+		func(d: Vector3) -> bool: return not (d.z > 0.3 and d.y < 0.52))
+	# the right end thrown back over the shoulder
+	lp.xf = Transform3D(Basis(Vector3.BACK, -0.3) * Basis(Vector3.RIGHT, 1.0), Vector3(-0.17, -0.02, -0.06))
+	lp.block(Vector3.ZERO, Vector3(0.07, 0.17, 0.12), 0.012, 0.008, check)
+	lp.xf = Transform3D.IDENTITY
+	# the iqal: two black cords round the crown, tilted a little back
+	for k in 2:
+		lp.xf = Transform3D(Basis(Vector3.RIGHT, -0.22), HC + Vector3(0, 0.125 + 0.024 * k, -0.02))
+		_ring(lp, 0.152, 0.146, 0.013, 14, IQAL)
+	lp.xf = Transform3D.IDENTITY
 	return lp.commit()
 
 
-func _tail_mesh(k: int) -> ArrayMesh:
+## the shemagh falling from the head to the shoulders, open in front for the face
+func _drape_mesh() -> ArrayMesh:
+	var lp := _lp(15)
+	var check := _check()
+	var rings := [[HC.y - 0.06, 0.188, 0.185, 0.55], [HC.y - 0.13, 0.19, 0.18, 0.62],
+		[0.0, 0.2, 0.17, 0.7], [-0.06, 0.24, 0.19, 0.75]]
+	var n := 12
+	var pts := []
+	for r in rings:
+		var row := []
+		for k in n:
+			var gap: float = r[3]
+			var a := PI / 2 + gap + (TAU - 2 * gap) * k / (n - 1)
+			row.append(Vector3(cos(a) * (r[1] as float), r[0], -0.01 + sin(a) * (r[2] as float)))
+		pts.append(row)
+	for i in rings.size() - 1:
+		for k in n - 1:
+			var a: Vector3 = pts[i][k]; var b: Vector3 = pts[i][k + 1]; var c: Vector3 = pts[i + 1][k]; var d: Vector3 = pts[i + 1][k + 1]
+			var ins := Vector3(0, (a.y + c.y) / 2.0, -0.01)
+			lp.tri(a, b, d, check, ins); lp.tri(a, d, c, check, ins)
+	return lp.commit()
+
+
+## the hanging end of the shemagh: beside the face (0), then lying on the chest (1)
+func _flap_mesh(k: int) -> ArrayMesh:
 	var lp := _lp(20 + k)
-	var h := 0.11 if k == 0 else 0.09
-	var w := 0.075 if k == 0 else 0.06
-	lp.block(Vector3(0, -h / 2.0, 0), Vector3(w, h, 0.022), 0.008, 0.005, RED if k == 0 else WHITE)
-	lp.block(Vector3(0, -h * 0.35, 0.002), Vector3(w * 1.02, 0.018, 0.024), 0.004, 0.0, WHITE if k == 0 else RED)
+	if k == 0:
+		lp.block(Vector3(0, -0.085, 0), Vector3(0.1, 0.18, 0.03), 0.01, 0.006, _check())
+	else:
+		lp.block(Vector3(0, -0.07, 0), Vector3(0.095, 0.15, 0.03), 0.01, 0.006, _check())
+		lp.block(Vector3(0, -0.15, 0), Vector3(0.1, 0.02, 0.032), 0.004, 0.0, WHITE)   # fringe
 	return lp.commit()
+
+
+## red-and-white check, small enough to read as the shemagh's pattern
+static func _check() -> Callable:
+	return func(ctr: Vector3, _n: Vector3) -> Color:
+		var c := 0.028
+		var i := int(floor(ctr.x / c + 100.0)) + int(floor(ctr.y / c + 100.0)) + int(floor(ctr.z / c + 100.0))
+		return WHITE if i % 3 == 0 else RED
+
+
+## a faceted ring (the iqal cords) in the xz plane
+func _ring(lp: LP, rx: float, rz: float, t: float, n: int, cl: Color) -> void:
+	for k in n:
+		var a0 := TAU * k / n; var a1 := TAU * (k + 1) / n
+		var p0 := Vector3(cos(a0) * rx, 0, sin(a0) * rz); var p1 := Vector3(cos(a1) * rx, 0, sin(a1) * rz)
+		var mid := (p0 + p1) / 2.0
+		var save := lp.xf
+		lp.xf = save * Transform3D(Basis(Vector3.UP, -atan2(p1.z - p0.z, p1.x - p0.x)), mid)
+		lp.block(Vector3.ZERO, Vector3(p0.distance_to(p1) + t * 0.6, t * 1.4, t * 1.4), 0.0, 0.0, cl)
+		lp.xf = save
 
 
 func _face_parts() -> void:
@@ -234,7 +284,7 @@ func _arm(s: int) -> Node3D:
 	var lp := _lp(50 + s)
 	lp.xf = Transform3D(Basis(Vector3.BACK, 0.12 * s), Vector3.ZERO)
 	var rings := []
-	for r in [[-0.2, 0.05], [-0.1, 0.048], [0.0, 0.045]]:
+	for r in [[-0.21, 0.068], [-0.1, 0.055], [0.0, 0.047]]:
 		rings.append([r[0], LP.circle(6, r[1], r[1])])
 	lp.loft(rings, BISHT)
 	lp.cyl(Vector3(0, -0.215, 0), 0.04, 0.042, 0.02, 6, WHITE)   # thobe cuff
@@ -406,5 +456,5 @@ func _tail_physics(dt: float, v: Vector3) -> void:
 	_tail_v += ((target - _tail_a) * 60.0 - _tail_v * 7.0) * dt
 	_tail_a += _tail_v * dt
 	if tail.size() == 2:
-		(tail[0] as Node3D).rotation = Vector3(0.35 + _tail_a.x * 0.6, 0, _tail_a.y * 0.5)
-		(tail[1] as Node3D).rotation = Vector3(_tail_a.x * 0.5, 0, _tail_a.y * 0.4)
+		(tail[0] as Node3D).rotation = Vector3(-0.12 + _tail_a.x * 0.35, 0, _tail_a.y * 0.3)
+		(tail[1] as Node3D).rotation = Vector3(0.05 + _tail_a.x * 0.3, 0, _tail_a.y * 0.25)

@@ -193,13 +193,13 @@ static func circle(n: int, rx: float, rz: float, phase := 0.0, cx := 0.0, cz := 
 
 
 ## low-poly column / cone / disc (r1 = 0 gives a point)
-func cyl(c: Vector3, r0: float, r1: float, h: float, n: int, cl, jit := 0.0, phase := 0.0) -> void:
+func cyl(c: Vector3, r0: float, r1: float, h: float, n: int, cl, jit := 0.0, phase := 0.0, cap_bottom := true) -> void:
 	var a := circle(n, r0, r0, phase, c.x, c.z)
 	var b := circle(n, maxf(r1, 0.0001), maxf(r1, 0.0001), phase, c.x, c.z)
 	if jit > 0.0:
 		for k in n:
 			a[k] += Vector2(rnd(-jit, jit), rnd(-jit, jit)); b[k] += Vector2(rnd(-jit, jit), rnd(-jit, jit))
-	loft([[c.y, a], [c.y + h, b]], cl, true, r1 > 0.0, Vector2(c.x, c.z))
+	loft([[c.y, a], [c.y + h, b]], cl, cap_bottom, r1 > 0.0, Vector2(c.x, c.z))
 
 
 ## everything so far as one mesh (one draw call)

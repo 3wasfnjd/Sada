@@ -85,6 +85,12 @@ func _run() -> void:
 		board.build(R)
 		board.spawn(R.E + 1, Logic.start_pos(R, R.E + 1))
 		await process_frame
+		# trees: every crown stays over its own island, no trunk on the room
+		if Env.last_trees.is_empty(): fail("room %d: no trees" % k)
+		for tr in Env.last_trees:
+			var at: Vector3 = tr[0]; var reach: float = tr[1]
+			if not Env._crown_fits(tr[2], at, reach): fail("room %d: tree at %s reaches off its island (%.2f)" % [k, at, reach])
+			if absf(at.x) < R.W / 2.0 + 0.1 and absf(at.z) < R.H / 2.0 + 0.1: fail("room %d: tree on the room at %s" % [k, at])
 		var t := _tris(board)
 		if t > worst: worst = t; worst_k = k
 		if t > BUDGET: fail("room %d (%dx%d): %d triangles > %d" % [k, R.W, R.H, t, BUDGET])

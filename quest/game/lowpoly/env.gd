@@ -11,18 +11,23 @@ const LP = preload("res://game/lowpoly/lp.gd")
 const STONE := Color(0.70, 0.63, 0.53)
 const STONE_DK := Color(0.60, 0.56, 0.52)
 const WALL := Color(0.60, 0.57, 0.54)
-const MOSS := Color(0.47, 0.60, 0.30)
-const GRASS := Color(0.43, 0.57, 0.28)
-const GRASS_DK := Color(0.31, 0.44, 0.21)
-const EARTH := Color(0.55, 0.39, 0.26)
+const MOSS := Color(0.44, 0.60, 0.25)
+const GRASS := Color(0.53, 0.76, 0.25)
+const GRASS_HI := Color(0.64, 0.84, 0.30)
+const GRASS_LT := Color(0.74, 0.90, 0.36)
+const GRASS_DK := Color(0.40, 0.62, 0.20)
+const EARTH := Color(0.84, 0.45, 0.24)
+const EARTH_DK := Color(0.58, 0.27, 0.16)
+const WHITE_ROCK := Color(0.93, 0.90, 0.85)
 const ROCK := Color(0.52, 0.48, 0.46)
-const TRUNK := Color(0.42, 0.29, 0.20)
+const TRUNK := Color(0.66, 0.31, 0.18)
 const WOOD := Color(0.50, 0.33, 0.20)
 const IRON := Color(0.27, 0.27, 0.30)
-const LEAF := [Color(0.27, 0.48, 0.24), Color(0.36, 0.58, 0.27), Color(0.50, 0.68, 0.32)]
+const LEAF := [Color(0.24, 0.50, 0.20), Color(0.34, 0.62, 0.24), Color(0.47, 0.74, 0.28)]
 const FLOWERS := [Color(0.95, 0.85, 0.40), Color(0.93, 0.55, 0.45), Color(0.95, 0.93, 0.88)]
 
 const WALL_H := 0.95
+const GARDEN := 2.1   # depth of the garden behind the room, in cells
 
 
 static func _tone(c: Color, k: float) -> Color:
@@ -71,7 +76,7 @@ static func wall_mesh(cells: Array, W: int, H: int, seed_: int) -> ArrayMesh:
 			var y := r * rh + rh / 2.0 - 0.02
 			var split := (r + c.x + c.y) % 2 == 0
 			var top = null
-			if r == rows - 1 and lp.rnd(0, 1) < 0.4:
+			if r == rows - 1 and lp.rnd(0, 1) < 0.25:
 				top = _tone(MOSS, lp.rnd(0.9, 1.1))
 			var cl := _tone(WALL, lp.rnd(0.86, 1.1))
 			var hh := rh - 0.02 + (lp.rnd(-0.03, 0.05) if r == rows - 1 else 0.0)
@@ -136,47 +141,83 @@ static func exit_mesh(seed_: int) -> ArrayMesh:
 	return lp.commit()
 
 
-## the floating island under the room: grass cap, earth band, rock body tapering to a point,
-## hanging and floating rocks, and life on the rim (trees at the back, bushes, rocks, grass)
+## the floating island under the room: lime grass on top, orange earth below tapering to a point,
+## a garden behind the room where the trees stand (every tree fully on the island), tall grass
+## on the rim, white rocks, bushes, and small floating islands around it.
+## The last island built keeps its outline and tree list for the art test.
+static var last_outline := PackedVector2Array()
+static var last_trees := []   # [Vector3 trunk base, float measured crown reach, PackedVector2Array island top]
+
 static func island_mesh(R: Dictionary, seed_: int) -> ArrayMesh:
 	var lp := LP.new(seed_)
 	var W: int = R.W; var H: int = R.H
-	lp.ao_low = -2.6; lp.ao_high = 0.0; lp.ao_min = 0.42
-	var ex := W / 2.0 + 0.55; var ez := H / 2.0 + 0.55
-	var n := 32
+	var hw := W / 2.0; var hh := H / 2.0
+	var ex := hw + 0.75; var ez_f := hh + 0.6; var ez_b := hh + GARDEN
+	var n := 36
 	var base := PackedVector2Array()
-	for k in n:   # rounded rectangle (superellipse) around the room
+	for k in n:   # rounded rectangle, deeper at the back (the garden)
 		var a := TAU * k / n + PI / n
 		var cx := cos(a); var sz := sin(a)
-		base.append(Vector2(signf(cx) * pow(absf(cx), 0.45) * ex, signf(sz) * pow(absf(sz), 0.45) * ez))
-	var layers := [[-0.05, 1.0, 0.0], [-0.2, 1.03, 0.04], [-0.3, 0.99, 0.05], [-0.75, 0.86, 0.1],
-		[-1.35, 0.62, 0.12], [-2.0, 0.34, 0.1], [-2.6, 0.06, 0.04]]
+		var z := signf(sz) * pow(absf(sz), 0.4)
+		base.append(Vector2(signf(cx) * pow(absf(cx), 0.4) * ex, z * (ez_f if z > 0.0 else ez_b)))
+	var top := _landmass(lp, base, Vector3(0, -0.05, 0), 2.8, 0.1)
+	last_outline = top
+	last_trees = []
+	lp.ao_low = -0.1; lp.ao_high = 2.2; lp.ao_min = 0.72
+	_garden(lp, top, hw, hh, ex, ez_b)
+	_rim_life(lp, top, hw, hh)
+	_skirt(lp, top, -0.05)
+	# small floating islands around, each with its own life
+	var minis := [[Vector3(-ex - 1.3, -0.5, -0.4), 0.7], [Vector3(ex + 1.2, 0.15, -hh * 0.5 - 0.6), 0.55],
+		[Vector3(-ex * 0.4, 0.55, -ez_b - 1.1), 0.5], [Vector3(ex + 0.9, -1.1, hh * 0.6), 0.4]]
+	for m in minis:
+		var c: Vector3 = m[0]; var r: float = m[1]
+		lp.ao_low = c.y - r * 2.2; lp.ao_high = c.y; lp.ao_min = 0.45
+		var pts := LP.circle(9, r, r * 0.85, lp.rnd(0, 1))
+		var mtop := _landmass(lp, pts, c, r * 2.2, r * 0.18)
+		lp.ao_low = c.y - 0.1; lp.ao_high = c.y + 1.4; lp.ao_min = 0.6
+		if r >= 0.55:
+			last_trees.append([c, _tree(lp, c, 0.55, r * 0.5), mtop])
+		else:
+			_bush(lp, c + Vector3(lp.rnd(-0.1, 0.1), 0, lp.rnd(-0.1, 0.1)), r * 0.45)
+		for k in 6:
+			var a := lp.rnd(0, TAU); var d := lp.rnd(0.2, 0.75) * r
+			_tuft(lp, c + Vector3(cos(a) * d, 0, sin(a) * d * 0.85), 0.16)
+		lp.blob(c + Vector3(r * 0.4, 0.03, r * 0.2), Vector3(0.09, 0.07, 0.08), 0.3, WHITE_ROCK)
+		_skirt(lp, mtop, c.y)
+	return lp.commit()
+
+
+## grass top + earth body through a ring of points (relative to c); returns the top outline (absolute x/z)
+static func _landmass(lp: LP, pts: PackedVector2Array, c: Vector3, depth: float, jit: float) -> PackedVector2Array:
+	var n := pts.size()
+	var layers := [[0.0, 1.0, 0.0], [-0.06, 1.03, 0.4], [-0.13, 1.0, 0.5], [-0.3, 0.9, 1.0],
+		[-0.55, 0.66, 1.2], [-0.8, 0.38, 1.0], [-1.0, 0.07, 0.4]]
 	var rings := []
 	for L in layers:
 		var r := PackedVector2Array()
 		for k in n:
-			var p: Vector2 = base[k] * (L[1] as float)
-			r.append(p + p.normalized() * lp.rnd(-L[2], L[2]))
-		rings.append([L[0] + lp.rnd(-0.02, 0.02), r])
+			var p: Vector2 = pts[k] * (L[1] as float)
+			r.append(Vector2(c.x, c.z) + p + p.normalized() * lp.rnd(-jit, jit) * (L[2] as float))
+		rings.append([c.y + (L[0] as float) * depth + lp.rnd(-0.015, 0.015) * depth, r])
+	rings[0][0] = c.y
 	rings.reverse()
+	var gy := c.y - 0.035 * depth
 	var band := func(ctr: Vector3, nm: Vector3) -> Color:
-		if ctr.y > -0.21: return _tone(GRASS, 1.0 + nm.y * 0.06)
-		if ctr.y > -0.27: return GRASS_DK
-		if ctr.y > -0.8: return _tone(EARTH, lerpf(0.9, 1.05, clampf(ctr.y + 0.8, 0, 1)))
-		return ROCK
-	lp.loft(rings, band, false, false)
-	# faceted grass top: two inner rings, slightly uneven, then the centre
-	var top_y: float = rings[rings.size() - 1][0]
+		if ctr.y > gy: return _tone(GRASS if nm.y > 0.5 else GRASS_DK, 1.0 + nm.y * 0.05)
+		var k := clampf((ctr.y - (c.y - depth)) / depth, 0.0, 1.0)
+		return EARTH_DK.lerp(EARTH, k)
+	lp.loft(rings, band, false, false, Vector2(c.x, c.z))
 	var outer: PackedVector2Array = rings[rings.size() - 1][1]
 	var tops := [outer]
-	for f in [0.74, 0.45]:
+	for f in [0.72, 0.42]:
 		var r := PackedVector2Array()
-		for k in n: r.append(base[k] * f + Vector2(lp.rnd(-0.08, 0.08), lp.rnd(-0.08, 0.08)))
+		for k in n: r.append(Vector2(c.x, c.z) + pts[k] * f + Vector2(lp.rnd(-0.06, 0.06), lp.rnd(-0.06, 0.06)))
 		tops.append(r)
-	var below := Vector3(0, top_y - 2.0, 0)
+	var below := Vector3(c.x, c.y - 2.0, c.z)
 	for j in 2:
 		var a: PackedVector2Array = tops[j]; var b: PackedVector2Array = tops[j + 1]
-		var ya := top_y + (0.0 if j == 0 else lp.rnd(-0.01, 0.01)); var yb := top_y + lp.rnd(0.0, 0.02)
+		var ya := c.y + (0.0 if j == 0 else lp.rnd(-0.008, 0.008)); var yb := c.y + lp.rnd(0.0, 0.015)
 		for k in n:
 			var k2 := (k + 1) % n
 			var p0 := Vector3(a[k].x, ya, a[k].y); var p1 := Vector3(a[k2].x, ya, a[k2].y)
@@ -185,91 +226,161 @@ static func island_mesh(R: Dictionary, seed_: int) -> ArrayMesh:
 	var inner: PackedVector2Array = tops[2]
 	for k in n:
 		var k2 := (k + 1) % n
-		lp.tri(Vector3(0, top_y, 0), Vector3(inner[k].x, top_y, inner[k].y), Vector3(inner[k2].x, top_y, inner[k2].y), band, below)
-	# hanging rocks under the island and a few small ones floating beside it
+		lp.tri(Vector3(c.x, c.y, c.z), Vector3(inner[k].x, c.y, inner[k].y), Vector3(inner[k2].x, c.y, inner[k2].y), band, below)
+	# a few rocks hanging under it
+	for k in maxi(2, n / 9):
+		var a := lp.rnd(0, TAU)
+		var d := lp.rnd(0.15, 0.4)
+		var p := Vector2(c.x, c.z) + pts[k * 3 % n] * d
+		lp.blob(Vector3(p.x, c.y - depth * lp.rnd(0.35, 0.55), p.y), Vector3(0.18, 0.3, 0.18) * depth * 0.4, 0.25, EARTH_DK)
+	return outer
+
+
+## the garden behind the room: a row of tall trees (crowns fully over the island), bushes, rocks
+static func _garden(lp: LP, top: PackedVector2Array, hw: float, hh: float, ex: float, ez_b: float) -> void:
+	var x := -ex + 0.6
+	while x < ex - 0.5:
+		for _try in 12:
+			var s := lp.rnd(0.85, 1.15)
+			var cr := 0.68 * s
+			var at := Vector3(x + lp.rnd(-0.15, 0.15), -0.05, -hh - lp.rnd(0.75, GARDEN - cr - 0.05))
+			if _crown_fits(top, at, cr + 0.12):
+				last_trees.append([at, _tree(lp, at, s, cr), top])
+				break
+		x += lp.rnd(0.95, 1.25)
 	for k in 5:
-		var a := lp.rnd(0, TAU)
-		lp.blob(Vector3(cos(a) * ex * 0.45, lp.rnd(-1.4, -0.9), sin(a) * ez * 0.45), Vector3(0.35, 0.5, 0.35) * lp.rnd(0.7, 1.2), 0.25, ROCK)
-	for k in 3:
-		var a := TAU * k / 3.0 + lp.rnd(0, 1)
-		var at := Vector3(cos(a) * (ex + 0.9), lp.rnd(-1.4, -0.5), sin(a) * (ez + 0.9))
-		lp.blob(at, Vector3(0.22, 0.2, 0.22) * lp.rnd(0.7, 1.3), 0.3, ROCK, 0, -2.0)
-		lp.blob(at + Vector3(0, 0.13, 0), Vector3(0.2, 0.06, 0.2), 0.2, GRASS, 0, 0.0)
-	_rim_life(lp, W, H, ex, ez)
-	return lp.commit()
+		var p := Vector3(lp.rnd(-ex + 0.3, ex - 0.3), -0.05, -hh - lp.rnd(0.25, GARDEN - 0.3))
+		if _crown_fits(top, p, 0.25): _bush(lp, p, lp.rnd(0.14, 0.22))
+	for k in 6:
+		var p := Vector3(lp.rnd(-ex + 0.2, ex - 0.2), -0.05, -hh - lp.rnd(0.2, GARDEN - 0.2))
+		if _crown_fits(top, p, 0.15):
+			lp.blob(p + Vector3(0, 0.05, 0), Vector3(0.14, 0.11, 0.12) * lp.rnd(0.7, 1.5), 0.3, _tone(WHITE_ROCK, lp.rnd(0.92, 1.02)))
+	for k in 130:
+		var p := Vector3(lp.rnd(-ex + 0.1, ex - 0.1), -0.05, -hh - lp.rnd(0.12, GARDEN - 0.1))
+		if _crown_fits(top, p, 0.06): _tuft(lp, p, lp.rnd(0.18, 0.34))
 
 
-## trees on the far corners (never in front of the puzzle), bushes, rocks, tufts and flowers
-static func _rim_life(lp: LP, W: int, H: int, ex: float, ez: float) -> void:
-	lp.ao_low = -0.1; lp.ao_high = 1.6; lp.ao_min = 0.6
-	var hw := W / 2.0; var hh := H / 2.0
-	var trees := [Vector3(-ex + 0.3, 0, -ez + 0.3), Vector3(ex - 0.3, 0, -ez + 0.25)]
-	if W >= 6: trees.append(Vector3(lp.rnd(-0.3, 0.3) * W, 0, -ez + 0.22))
-	if H >= 6: trees.append(Vector3(-ex + 0.22, 0, -hh * 0.2))
-	for t in trees:
-		_tree(lp, t + Vector3(0, -0.06, 0), lp.rnd(0.85, 1.15))
-	for k in 6:   # bushes along the sides and the far edge
-		var p := _rim_point(lp, hw, hh, ex, ez, false)
-		var s := lp.rnd(0.16, 0.26)
-		lp.blob(p + Vector3(0, s * 0.5, 0), Vector3(s * 1.2, s, s * 1.2), 0.22, _leaf_fn(p.y + s * 1.5, s * 2.0))
-	for k in 7:
-		var p := _rim_point(lp, hw, hh, ex, ez, true)
-		lp.blob(p + Vector3(0, 0.03, 0), Vector3(0.12, 0.09, 0.1) * lp.rnd(0.7, 1.6), 0.3, _tone(ROCK, lp.rnd(1.0, 1.25)))
-	for k in 16:
-		var p := _rim_point(lp, hw, hh, ex, ez, true)
-		_tuft(lp, p + Vector3(0, -0.06, 0))
-	for k in 8:
-		var p := _rim_point(lp, hw, hh, ex, ez, true)
-		var c: Color = FLOWERS[k % FLOWERS.size()]
-		lp.cyl(p + Vector3(0, -0.06, 0), 0.01, 0.006, 0.1, 3, GRASS_DK)
-		lp.blob(p + Vector3(0, 0.06, 0), Vector3(0.035, 0.025, 0.035), 0.1, c)
+static func _crown_fits(top: PackedVector2Array, at: Vector3, r: float) -> bool:
+	for k in 10:
+		var a := TAU * k / 10.0
+		if not Geometry2D.is_point_in_polygon(Vector2(at.x + cos(a) * r, at.z + sin(a) * r), top): return false
+	return true
 
 
-static func _rim_point(lp: LP, hw: float, hh: float, ex: float, ez: float, front_ok: bool) -> Vector3:
-	for _i in 30:
-		var a := lp.rnd(0, TAU)
-		var x := cos(a) * ex * 0.97; var z := sin(a) * ez * 0.97
-		x = clampf(x, -ex + 0.08, ex - 0.08); z = clampf(z, -ez + 0.08, ez - 0.08)
-		var outside := absf(x) > hw + 0.08 or absf(z) > hh + 0.08
-		if not outside: continue
-		if not front_ok and z > hh * 0.3: continue
-		if z > hh + 0.25 and absf(x) < hw * 0.75: continue   # keep the timeline strip in front clear
-		return Vector3(x, -0.05, z)
-	return Vector3(-ex + 0.1, -0.05, -ez + 0.1)
+## along the sides and the front: tall grass (short in front, so the room stays readable),
+## bushes, white rocks and flowers; the timeline strip in front stays clear
+static func _rim_life(lp: LP, top: PackedVector2Array, hw: float, hh: float) -> void:
+	var placed := 0
+	for _i in 900:
+		if placed >= 320: break
+		var p := Vector3(lp.rnd(-hw - 0.75, hw + 0.75), -0.05, lp.rnd(-hh - 0.2, hh + 0.6))
+		if absf(p.x) < hw + 0.07 and p.z > -hh - 0.07: continue          # on the room
+		if p.z > hh + 0.25 and absf(p.x) < hw * 0.8: continue             # the timeline strip
+		if not _crown_fits(top, p, 0.05): continue
+		var front := p.z > hh * 0.2
+		_tuft(lp, p, lp.rnd(0.07, 0.11) if front else lp.rnd(0.16, 0.3))
+		placed += 1
+	for k in 40:
+		var p := Vector3(lp.rnd(-hw - 0.7, hw + 0.7), -0.05, lp.rnd(-hh, hh + 0.5))
+		if absf(p.x) < hw + 0.2: continue
+		if not _crown_fits(top, p, 0.22): continue
+		var r := lp.rnd(0, 1)
+		if r < 0.3 and p.z < hh * 0.3: _bush(lp, p, lp.rnd(0.13, 0.2))
+		elif r < 0.6: lp.blob(p + Vector3(0, 0.04, 0), Vector3(0.11, 0.08, 0.1) * lp.rnd(0.7, 1.4), 0.3, _tone(WHITE_ROCK, lp.rnd(0.92, 1.02)))
+		else:
+			var c: Color = FLOWERS[k % FLOWERS.size()]
+			lp.cyl(p, 0.01, 0.006, 0.12, 3, GRASS_DK)
+			lp.blob(p + Vector3(0, 0.13, 0), Vector3(0.035, 0.025, 0.035), 0.1, c)
+
+
+## grass blades hanging over the island's edge
+static func _skirt(lp: LP, top: PackedVector2Array, y: float) -> void:
+	var save := lp.xf
+	var n := top.size()
+	for k in n:
+		var a: Vector2 = top[k]; var b: Vector2 = top[(k + 1) % n]
+		var out := Vector2(b.y - a.y, a.x - b.x).normalized()
+		var ctr := Vector2.ZERO
+		for q in top: ctr += q
+		ctr /= float(n)
+		if out.dot((a + b) / 2.0 - ctr) < 0.0: out = -out
+		for j in 3:
+			var p := a.lerp(b, (j + lp.rnd(0.1, 0.9)) / 3.0)
+			var tilt := Basis(Vector3(-out.y, 0, out.x), lp.rnd(1.6, 2.3))   # lean out and down
+			lp.xf = Transform3D(tilt, Vector3(p.x, y - 0.01, p.y) - Vector3(out.x, 0, out.y) * 0.02)
+			lp.cyl(Vector3.ZERO, 0.025, 0.0, lp.rnd(0.1, 0.18), 3, GRASS if j % 2 == 0 else GRASS_DK, 0.0, lp.rnd(0, 1))
+	lp.xf = save
 
 
 static func _leaf_fn(top: float, h: float) -> Callable:
 	return func(ctr: Vector3, nm: Vector3) -> Color:
-		var k := clampf((ctr.y - (top - h)) / maxf(h, 0.01), 0.0, 1.0) * 0.7 + clampf(nm.y, 0.0, 1.0) * 0.5
-		var i := clampi(int(k * 2.0), 0, 2)
-		return LEAF[i]
+		var k := clampf((ctr.y - (top - h)) / maxf(h, 0.01), 0.0, 1.0) * 0.6 + clampf(nm.y, 0.0, 1.0) * 0.6
+		return LEAF[clampi(int(k * 2.0), 0, 2)]
 
 
-static func _tree(lp: LP, at: Vector3, s: float) -> void:
-	var trunk_h := 0.55 * s
-	var lean := Vector3(lp.rnd(-0.06, 0.06), 0, lp.rnd(-0.06, 0.06))
-	var save: Transform3D = lp.xf
-	lp.cyl(at, 0.08 * s, 0.05 * s, trunk_h, 5, TRUNK, 0.01)
+static func _bush(lp: LP, at: Vector3, s: float) -> void:
+	var leaf := _leaf_fn(at.y + s * 1.6, s * 1.6)
+	lp.blob(at + Vector3(0, s * 0.6, 0), Vector3(s * 1.2, s, s * 1.2), 0.2, leaf, 1)
+	lp.blob(at + Vector3(s * 0.7, s * 0.4, s * 0.2), Vector3(s * 0.7, s * 0.6, s * 0.7), 0.2, leaf)
+
+
+## a tall tree: slender red-brown trunk with a slight bend, branches rising to flat umbrella
+## canopies in layers (darker underneath, lighter on top). All of it within `cr` of the trunk.
+static func _tree(lp: LP, at: Vector3, s: float, cr: float) -> float:
+	var h := lp.rnd(1.5, 2.1) * s
+	var bend := Vector3(lp.rnd(-0.08, 0.08), 0, lp.rnd(-0.08, 0.08)) * s
+	var mid := at + Vector3(0, h * 0.5, 0) + bend
+	var tip := at + Vector3(0, h, 0) + bend * 0.4
+	_limb(lp, at, mid, 0.07 * s, 0.05 * s)
+	_limb(lp, mid, tip, 0.05 * s, 0.03 * s)
 	for k in 3:   # roots
 		var a := TAU * k / 3.0 + lp.rnd(0, 1)
-		lp.block(at + Vector3(cos(a) * 0.08, 0.02, sin(a) * 0.08) * s, Vector3(0.12, 0.05, 0.05) * s, 0.01, 0.01, TRUNK)
-	var top := at + lean + Vector3(0, trunk_h, 0)
-	var crown_top := top.y + 0.75 * s
-	var leaf := _leaf_fn(crown_top, 0.95 * s)
-	# stacked leaf masses, big at the bottom, smaller and lighter towards the top
-	lp.blob(top + Vector3(0, 0.12, 0) * s, Vector3(0.42, 0.3, 0.42) * s, 0.18, leaf, 1)
-	lp.blob(top + Vector3(lp.rnd(-0.12, 0.12), 0.38, lp.rnd(-0.12, 0.12)) * s, Vector3(0.32, 0.26, 0.32) * s, 0.18, leaf, 1)
-	lp.blob(top + Vector3(lp.rnd(-0.08, 0.08), 0.6, lp.rnd(-0.08, 0.08)) * s, Vector3(0.2, 0.18, 0.2) * s, 0.2, leaf, 0)
-	for k in 2:
-		var a := lp.rnd(0, TAU)
-		lp.blob(top + Vector3(cos(a) * 0.32, 0.1, sin(a) * 0.32) * s, Vector3(0.18, 0.15, 0.18) * s, 0.2, leaf, 0)
+		_limb(lp, at + Vector3(0, 0.1 * s, 0), at + Vector3(cos(a) * 0.14, 0.0, sin(a) * 0.14) * s, 0.035 * s, 0.015 * s)
+	var leaf := _leaf_fn(tip.y + 0.2 * s, h * 0.6)
+	var reach := _canopy(lp, tip + Vector3(0, 0.05, 0), cr * 0.72, leaf, at)
+	var nb := 3
+	for k in nb:
+		var a := TAU * k / nb + lp.rnd(-0.4, 0.4)
+		var from := at.lerp(tip, lp.rnd(0.5, 0.72)) + bend * 0.5
+		var out := cr * lp.rnd(0.32, 0.4)
+		var to := from + Vector3(cos(a) * out, h * lp.rnd(0.18, 0.3), sin(a) * out)
+		_limb(lp, from, to, 0.03 * s, 0.018 * s)
+		reach = maxf(reach, _canopy(lp, to + Vector3(0, 0.03, 0), cr * lp.rnd(0.45, 0.55), leaf, at))
+	return reach
+
+
+## a flat leaf layer; returns how far it reaches from `trunk` (horizontally)
+static func _canopy(lp: LP, c: Vector3, r: float, leaf: Callable, trunk: Vector3) -> float:
+	lp.blob(c, Vector3(r, r * 0.38, r), 0.16, leaf, 1)
+	lp.blob(c + Vector3(lp.rnd(-0.05, 0.05), r * 0.3, lp.rnd(-0.05, 0.05)), Vector3(r * 0.66, r * 0.3, r * 0.66), 0.16, leaf, 1)
+	return Vector2(c.x - trunk.x, c.z - trunk.z).length() + r * 1.16
+
+
+## a tapered 5-sided branch from a to b
+static func _limb(lp: LP, a: Vector3, b: Vector3, r0: float, r1: float) -> void:
+	var save := lp.xf
+	var d := b - a
+	var up := d.normalized()
+	var side := up.cross(Vector3.FORWARD if absf(up.z) < 0.9 else Vector3.RIGHT).normalized()
+	var bs := Basis(side, up, side.cross(up))
+	lp.xf = save * Transform3D(bs, a)
+	lp.cyl(Vector3.ZERO, r0, r1, d.length(), 5, TRUNK, 0.0, lp.rnd(0, 1))
 	lp.xf = save
 
 
-static func _tuft(lp: LP, at: Vector3) -> void:
-	for k in 3:
-		var a := TAU * k / 3.0 + lp.rnd(0, 1)
-		lp.cyl(at + Vector3(cos(a) * 0.03, 0, sin(a) * 0.03), 0.018, 0.0, lp.rnd(0.09, 0.15), 3, GRASS if k % 2 == 0 else GRASS_DK, 0.0, a)
+## a clump of grass blades (3-sided, open at the bottom: 3 triangles a blade), lit like the lawn
+static func _tuft(lp: LP, at: Vector3, h := 0.14) -> void:
+	var save := lp.xf
+	var ao := lp.ao_min
+	lp.ao_min = 0.92
+	for k in 5:
+		var a := TAU * k / 5.0 + lp.rnd(0, 1)
+		var d := lp.rnd(0.0, 0.04)
+		var lean := Basis(Vector3(-sin(a), 0, cos(a)), lp.rnd(0.15, 0.5))
+		lp.xf = save * Transform3D(lean, at + Vector3(cos(a) * d, -0.01, sin(a) * d))
+		lp.cyl(Vector3.ZERO, 0.018, 0.0, h * lp.rnd(0.6, 1.2), 3, [GRASS_HI, GRASS, GRASS_LT][k % 3], 0.0, a, false)
+	lp.xf = save
+	lp.ao_min = ao
 
 
 static func _cell(x: int, y: int, W: int, H: int) -> Vector3:
