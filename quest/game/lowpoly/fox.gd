@@ -77,7 +77,8 @@ func build(as_ghost: bool, ghost_material: Material = null) -> void:
 	var parent: Node3D = body
 	for k in 3:   # the tail: three fluffy segments, the last with the white tip
 		var seg := Node3D.new()
-		seg.position = Vector3(0, 0.32, -0.22) if k == 0 else Vector3(0, 0.0, -0.14)
+		seg.position = Vector3(0, 0.32, -0.2) if k == 0 else Vector3(0, 0.0, -0.12)
+		seg.rotation.x = [0.75, 0.25, 0.15][k]   # rest pose: curled up behind
 		seg.add_child(_mesh(_tail_mesh(k)))
 		parent.add_child(seg); tail.append(seg); parent = seg
 	if ghost:
@@ -427,6 +428,6 @@ func _tail_physics(dt: float, v: Vector3) -> void:
 	_tail_v += ((target - _tail_a) * 60.0 - _tail_v * 7.0) * dt
 	_tail_a += _tail_v * dt
 	if tail.size() == 3:
-		(tail[0] as Node3D).rotation = Vector3(0.45 + _tail_a.x * 0.4, _tail_a.y * 0.5, 0)
-		(tail[1] as Node3D).rotation = Vector3(0.1 + _tail_a.x * 0.3, _tail_a.y * 0.4, 0)
-		(tail[2] as Node3D).rotation = Vector3(0.0 + _tail_a.x * 0.3, _tail_a.y * 0.4, 0)
+		(tail[0] as Node3D).rotation = Vector3(0.75 + _tail_a.x * 0.4, _tail_a.y * 0.5, 0)
+		(tail[1] as Node3D).rotation = Vector3(0.25 + _tail_a.x * 0.3, _tail_a.y * 0.4, 0)
+		(tail[2] as Node3D).rotation = Vector3(0.15 + _tail_a.x * 0.3, _tail_a.y * 0.4, 0)

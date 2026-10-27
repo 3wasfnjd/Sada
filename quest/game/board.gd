@@ -13,7 +13,7 @@ const ECHO_COLS := [Color(0.56, 0.85, 1.0), Color(0.53, 0.72, 1.0), Color(0.62, 
 const HOP := 0.32
 const LOWPOLY := true
 const Env = preload("res://game/lowpoly/env.gd")
-const Hero = preload("res://game/lowpoly/hero.gd")
+const Hero = preload("res://game/lowpoly/fox.gd")   # the hero since 0.8.0 (hero.gd: the elder, kept)
 
 var R: Dictionary
 var room_node: Node3D

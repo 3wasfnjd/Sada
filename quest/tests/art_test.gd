@@ -6,7 +6,7 @@ extends SceneTree
 ## - triangle budget per room (Quest), and the hero's faces switch as asked
 
 const Env = preload("res://game/lowpoly/env.gd")
-const Hero = preload("res://game/lowpoly/hero.gd")
+const Hero = preload("res://game/lowpoly/fox.gd")   # the hero since 0.8.0 (hero.gd: the elder, kept)
 const Logic = preload("res://core/sada_logic.gd")
 const BUDGET := 60000   # triangles for a whole room with its island, doors, neon and figures
 
@@ -57,7 +57,8 @@ func _run() -> void:
 		var bb: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
 		hb = bb if first else hb.merge(bb); first = false
 	if hb.size.y < 0.7 or hb.size.y > 1.0: fail("hero height %.2f (want 0.7..1.0 cells)" % hb.size.y)
-	if hb.size.x > 0.75 or hb.size.z > 0.75: fail("hero wider than a cell: %s" % hb.size)
+	# an animal is long: up to one cell nose to tail, a bit under one cell wide
+	if hb.size.x > 0.75 or hb.size.z > 1.0: fail("hero bigger than a cell: %s" % hb.size)
 	var want := {"calm": [0, 0], "smile": [1, 0], "surprise": [0, 1], "worry": [0, 2], "joy": [1, 1]}
 	for x in want:
 		h.expr(x, 0.0)
