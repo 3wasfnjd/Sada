@@ -16,6 +16,7 @@ const BEARD := Color(0.93, 0.92, 0.89)
 const RED := Color(0.80, 0.15, 0.15)
 const BISHT := Color(0.12, 0.12, 0.13)
 const IQAL := Color(0.07, 0.07, 0.08)
+const CLOTH := Color(1, 1, 1)   # shemagh vertex colour: the texture carries the pattern
 const GOLD := Color(0.86, 0.68, 0.32)
 const EYE := Color(0.16, 0.10, 0.07)
 const MOUTH := Color(0.36, 0.14, 0.12)
@@ -71,18 +72,18 @@ func build(as_ghost: bool, ghost_material: Material = null) -> void:
 	head.add_child(_mesh(_head_mesh()))
 	var drape := _mesh(_drape_mesh())
 	if not ghost:
-		var dm := LP.material().duplicate() as StandardMaterial3D
-		dm.cull_mode = BaseMaterial3D.CULL_DISABLED
-		drape.material_override = dm
+		drape.material_override = shemagh_material()
 	head.add_child(drape)
 	_face_parts()
 	# the shemagh's free end on his left: hangs beside the face, then onto the chest
-	var pivot := Node3D.new(); pivot.position = Vector3(0.135, -0.01, 0.125); head.add_child(pivot)
+	var pivot := Node3D.new(); pivot.position = Vector3(0.175, -0.035, 0.125); head.add_child(pivot)
 	var parent: Node3D = pivot
 	for k in 2:
 		var seg := Node3D.new()
-		seg.position = Vector3.ZERO if k == 0 else Vector3(0.0, -0.17, 0.0)
-		seg.add_child(_mesh(_flap_mesh(k)))
+		seg.position = Vector3.ZERO if k == 0 else Vector3(-0.02, -0.17, 0.005)
+		var fm := _mesh(_flap_mesh(k))
+		fm.material_override = shemagh_material()
+		seg.add_child(fm)
 		parent.add_child(seg); tail.append(seg); parent = seg
 	arm_l = _arm(-1); arm_r = _arm(1)
 	foot_l = _foot(-1); foot_r = _foot(1)
@@ -161,14 +162,6 @@ func _head_mesh() -> ArrayMesh:
 		lp.xf = Transform3D.IDENTITY
 	lp.blob(HC + Vector3(0, -0.13, 0.05), Vector3(0.14, 0.095, 0.125), 0.08, BEARD, 1)   # beard
 	lp.blob(HC + Vector3(0, -0.2, 0.08), Vector3(0.07, 0.06, 0.07), 0.15, BEARD)          # beard point
-	# the shemagh: fine red check on white, over the head, framing the face, down to the shoulders
-	var check := _check()
-	lp.blob(HC + Vector3(0, 0.012, -0.006), HR * Vector3(1.13, 1.08, 1.13), 0.015, check, 2, -0.62,
-		func(d: Vector3) -> bool: return not (d.z > 0.3 and d.y < 0.52))
-	# the right end thrown back over the shoulder
-	lp.xf = Transform3D(Basis(Vector3.BACK, -0.3) * Basis(Vector3.RIGHT, 1.0), Vector3(-0.17, -0.02, -0.06))
-	lp.block(Vector3.ZERO, Vector3(0.07, 0.17, 0.12), 0.012, 0.008, check)
-	lp.xf = Transform3D.IDENTITY
 	# the iqal: two black cords round the crown, tilted a little back
 	for k in 2:
 		lp.xf = Transform3D(Basis(Vector3.RIGHT, -0.22), HC + Vector3(0, 0.125 + 0.024 * k, -0.02))
@@ -177,46 +170,100 @@ func _head_mesh() -> ArrayMesh:
 	return lp.commit()
 
 
-## the shemagh falling from the head to the shoulders, open in front for the face
+## The shemagh, worn the Saudi way: a square folded into a triangle, its folded edge straight
+## across the forehead with the raised crease (البنية) in the middle, under the iqal; the sides fall
+## flat beside the cheeks to the shoulders; the triangle's point falls down the back with a
+## fringe. Left end hangs on the chest (its own swinging node), right end thrown back over the
+## shoulder. White vertex colours (light only): the check pattern is the texture.
 func _drape_mesh() -> ArrayMesh:
 	var lp := _lp(15)
-	var check := _check()
-	var rings := [[HC.y - 0.06, 0.188, 0.185, 0.55], [HC.y - 0.13, 0.19, 0.18, 0.62],
-		[0.0, 0.2, 0.17, 0.7], [-0.06, 0.24, 0.19, 0.75]]
-	var n := 12
-	var pts := []
-	for r in rings:
-		var row := []
-		for k in n:
-			var gap: float = r[3]
-			var a := PI / 2 + gap + (TAU - 2 * gap) * k / (n - 1)
-			row.append(Vector3(cos(a) * (r[1] as float), r[0], -0.01 + sin(a) * (r[2] as float)))
-		pts.append(row)
-	for i in rings.size() - 1:
-		for k in n - 1:
-			var a: Vector3 = pts[i][k]; var b: Vector3 = pts[i][k + 1]; var c: Vector3 = pts[i + 1][k]; var d: Vector3 = pts[i + 1][k + 1]
-			var ins := Vector3(0, (a.y + c.y) / 2.0, -0.01)
-			lp.tri(a, b, d, check, ins); lp.tri(a, d, c, check, ins)
+	lp.shade_jitter = 0.02
+	# over the head: top, sides and back down to the ears, open for the face
+	lp.blob(HC + Vector3(0, 0.012, -0.006), HR * Vector3(1.13, 1.08, 1.13), 0.012, CLOTH, 2, -0.62,
+		func(d: Vector3) -> bool: return not (d.z > 0.3 and d.y < 0.52))
+	# the crease over the forehead: a small upright diamond peak
+	lp.xf = Transform3D(Basis(Vector3.RIGHT, -0.5) * Basis(Vector3.BACK, PI / 4), HC + Vector3(0, 0.13, 0.145))
+	lp.block(Vector3.ZERO, Vector3(0.045, 0.045, 0.03), 0.004, 0.0, CLOTH)
+	lp.xf = Transform3D.IDENTITY
+	# the sides: flat cloth beside the cheeks down to the shoulders, a little flared
+	for sd in [-1.0, 1.0]:
+		var rows := [[HC.y + 0.02, 0.19, 0.12, -0.12], [HC.y - 0.1, 0.2, 0.125, -0.13],
+			[0.0, 0.215, 0.13, -0.14], [-0.055, 0.245, 0.12, -0.15]]
+		var grid := []
+		for r in rows:
+			var row := []
+			for k in 3:
+				var z: float = lerpf(r[2], r[3], k / 2.0)
+				row.append(Vector3(sd * ((r[1] as float) + 0.008 * absf(k - 1)), r[0], z))
+			grid.append(row)
+		_sheet(lp, grid, Vector3(0, HC.y * 0.5, 0))
+	# the back: the triangle's point falls down the back
+	var back := [[Vector3(-0.17, HC.y - 0.02, -0.15), Vector3(0, HC.y - 0.02, -0.18), Vector3(0.17, HC.y - 0.02, -0.15)],
+		[Vector3(-0.2, -0.04, -0.17), Vector3(0, -0.04, -0.21), Vector3(0.2, -0.04, -0.17)],
+		[Vector3(-0.1, -0.15, -0.2), Vector3(0, -0.16, -0.215), Vector3(0.1, -0.15, -0.2)]]
+	_sheet(lp, back, Vector3(0, 0.0, 0))
+	lp.tri(back[2][0], back[2][2], Vector3(0, -0.25, -0.215), CLOTH, Vector3(0, -0.2, 0))
+	for j in 3:   # fringe at the point
+		lp.block(Vector3(-0.016 + 0.016 * j, -0.265, -0.215), Vector3(0.007, 0.03, 0.007), 0.0, 0.0, CLOTH)
+	# the right end thrown back over the shoulder, then down the back
+	lp.xf = Transform3D(Basis(Vector3.BACK, 0.35) * Basis(Vector3.RIGHT, 0.15), Vector3(-0.2, -0.04, -0.03))
+	lp.block(Vector3.ZERO, Vector3(0.12, 0.014, 0.13), 0.004, 0.003, CLOTH)
+	lp.xf = Transform3D(Basis(Vector3.RIGHT, 0.2), Vector3(-0.16, -0.13, -0.22))
+	lp.block(Vector3.ZERO, Vector3(0.1, 0.16, 0.014), 0.004, 0.003, CLOTH)
+	lp.xf = Transform3D.IDENTITY
 	return lp.commit()
+
+
+## a thin sheet of cloth through a grid of points (rows of equal length)
+func _sheet(lp: LP, grid: Array, inside: Vector3) -> void:
+	for i in grid.size() - 1:
+		for k in (grid[i] as Array).size() - 1:
+			var a: Vector3 = grid[i][k]; var b: Vector3 = grid[i][k + 1]
+			var c: Vector3 = grid[i + 1][k]; var d: Vector3 = grid[i + 1][k + 1]
+			var ins := Vector3(inside.x, (a.y + c.y) / 2.0, inside.z)
+			lp.tri(a, b, d, CLOTH, ins); lp.tri(a, d, c, CLOTH, ins)
 
 
 ## the hanging end of the shemagh: beside the face (0), then lying on the chest (1)
 func _flap_mesh(k: int) -> ArrayMesh:
 	var lp := _lp(20 + k)
 	if k == 0:
-		lp.block(Vector3(0, -0.085, 0), Vector3(0.1, 0.18, 0.03), 0.01, 0.006, _check())
+		lp.xf = Transform3D(Basis(Vector3.UP, 0.35), Vector3.ZERO)   # turned to follow the shoulder
+		lp.block(Vector3(-0.02, -0.085, 0), Vector3(0.12, 0.18, 0.014), 0.004, 0.003, CLOTH)
+		lp.xf = Transform3D.IDENTITY
 	else:
-		lp.block(Vector3(0, -0.07, 0), Vector3(0.095, 0.15, 0.03), 0.01, 0.006, _check())
-		lp.block(Vector3(0, -0.15, 0), Vector3(0.1, 0.02, 0.032), 0.004, 0.0, WHITE)   # fringe
+		lp.block(Vector3(0, -0.07, 0), Vector3(0.095, 0.15, 0.016), 0.005, 0.004, CLOTH)
+		for j in 4:   # the fringe: short white threads
+			lp.block(Vector3(-0.036 + 0.024 * j, -0.158, 0), Vector3(0.008, 0.03, 0.008), 0.0, 0.0, CLOTH)
 	return lp.commit()
 
 
-## red-and-white check, small enough to read as the shemagh's pattern
-static func _check() -> Callable:
-	return func(ctr: Vector3, _n: Vector3) -> Color:
-		var c := 0.028
-		var i := int(floor(ctr.x / c + 100.0)) + int(floor(ctr.y / c + 100.0)) + int(floor(ctr.z / c + 100.0))
-		return WHITE if i % 3 == 0 else RED
+static var _shemagh_mat: StandardMaterial3D
+
+## the shemagh's cloth: a small red-and-white check texture made here in code (with mipmaps so
+## it stays calm in the headset), wrapped over the cloth by triplanar mapping; the faceted
+## shading still comes from the vertex colours. Both sides drawn (it is a thin sheet).
+static func shemagh_material() -> StandardMaterial3D:
+	if _shemagh_mat: return _shemagh_mat
+	var img := Image.create(32, 32, false, Image.FORMAT_RGB8)
+	for y in 32:
+		for x in 32:
+			var cx := x % 8; var cy := y % 8
+			var c := WHITE if (cx < 2 or cy < 2) else RED
+			if cx == 5 and cy == 5: c = Color(0.9, 0.55, 0.55)   # woven fleck in each red square
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	var m := StandardMaterial3D.new()
+	m.vertex_color_use_as_albedo = true
+	m.albedo_texture = ImageTexture.create_from_image(img)
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	m.uv1_triplanar = true
+	m.uv1_scale = Vector3.ONE * 13.0
+	m.roughness = 1.0
+	m.metallic_specular = 0.1
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_shemagh_mat = m
+	return m
 
 
 ## a faceted ring (the iqal cords) in the xz plane
