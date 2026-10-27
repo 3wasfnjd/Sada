@@ -1,0 +1,13 @@
+Godot Engine v4.6.3.stable.official.7d41c59c4 - https://godotengine.org
+
+room 1 ok  (L=3, echoes=0, 343 ms)
+room 2 ok  (L=5, echoes=1, 731 ms)
+room 3 ok  (L=7, echoes=1, 900 ms)
+room 4 ok  (L=7, echoes=0, 507 ms)
+room 5 ok  (L=8, echoes=1, 1008 ms)
+room 6 ok  (L=9, echoes=1, 1057 ms)
+room 7 ok  (L=12, echoes=1, 1326 ms)
+room 8 ok  (L=14, echoes=1, 1499 ms)
+play test: 0 failure(s)
+ERROR: Parameter "material" is null.
+   at: material_get_instance_shader_parameters (servers/rendering/dummy/storage/material_storage.cpp:265)

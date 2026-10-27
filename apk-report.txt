@@ -1,0 +1,143 @@
+Sada Quest APK build report
+file: sada-quest-0.9.0-13.apk
+version: 0.9.0 (code 13)
+size_bytes: 90582810
+sha256: 9226df1f4816baf29625a66a43d12135fa5f9049df1e97eaf2dc7a09fd7ff32b
+signing: TEST-ONLY key (tools/ci/test-signing) — sideload testing, not for store release
+godot: 4.6.3-stable; openxr_vendors: 5.1.0-stable; build-tools: 36.1.0; ndk: 29.0.14206865
+
+--- apksigner verify
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): false
+Verified using v3.1 scheme (APK Signature Scheme v3.1): false
+Verified using v4 scheme (APK Signature Scheme v4): false
+Verified for SourceStamp: false
+Number of signers: 1
+Signer #1 certificate DN: CN=Sada Test, O=Aboden Games
+Signer #1 certificate SHA-256 digest: ad59c35be247ee169e054e6127cf5a5a6368d0e303fe931ed48389e87d619998
+
+--- badging
+package: name='com.abodengames.sada' versionCode='13' versionName='0.9.0' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'
+targetSdkVersion:'34'
+uses-permission: name='com.oculus.permission.RENDER_MODEL'
+uses-permission: name='org.khronos.openxr.permission.OPENXR'
+uses-permission: name='org.khronos.openxr.permission.OPENXR_SYSTEM'
+application-label:'صدى — Sada'
+application-label-af:'صدى — Sada'
+application-label-am:'صدى — Sada'
+application-label-ar:'صدى — Sada'
+application-label-as:'صدى — Sada'
+application-label-az:'صدى — Sada'
+application-label-be:'صدى — Sada'
+application-label-bg:'صدى — Sada'
+application-label-bn:'صدى — Sada'
+application-label-bs:'صدى — Sada'
+application-label-ca:'صدى — Sada'
+application-label-cs:'صدى — Sada'
+application-label-da:'صدى — Sada'
+application-label-de:'صدى — Sada'
+application-label-el:'صدى — Sada'
+application-label-en:'صدى — Sada'
+application-label-en-AU:'صدى — Sada'
+application-label-en-CA:'صدى — Sada'
+application-label-en-GB:'صدى — Sada'
+application-label-en-IN:'صدى — Sada'
+application-label-en-XC:'صدى — Sada'
+application-label-es:'صدى — Sada'
+application-label-es-ES:'صدى — Sada'
+application-label-es-US:'صدى — Sada'
+application-label-et:'صدى — Sada'
+application-label-eu:'صدى — Sada'
+application-label-fa:'صدى — Sada'
+application-label-fi:'صدى — Sada'
+application-label-fr:'صدى — Sada'
+application-label-fr-CA:'صدى — Sada'
+application-label-gl:'صدى — Sada'
+application-label-gu:'صدى — Sada'
+application-label-hi:'صدى — Sada'
+application-label-hr:'صدى — Sada'
+application-label-hu:'صدى — Sada'
+application-label-hy:'صدى — Sada'
+application-label-in:'صدى — Sada'
+application-label-is:'صدى — Sada'
+application-label-it:'صدى — Sada'
+application-label-iw:'صدى — Sada'
+application-label-ja:'صدى — Sada'
+application-label-ka:'صدى — Sada'
+application-label-kk:'صدى — Sada'
+application-label-km:'صدى — Sada'
+application-label-kn:'صدى — Sada'
+application-label-ko:'صدى — Sada'
+application-label-ky:'صدى — Sada'
+application-label-lo:'صدى — Sada'
+application-label-lt:'صدى — Sada'
+application-label-lv:'صدى — Sada'
+application-label-mk:'صدى — Sada'
+application-label-ml:'صدى — Sada'
+application-label-mn:'صدى — Sada'
+application-label-mr:'صدى — Sada'
+application-label-ms:'صدى — Sada'
+application-label-my:'صدى — Sada'
+application-label-nb:'صدى — Sada'
+application-label-ne:'صدى — Sada'
+application-label-nl:'صدى — Sada'
+application-label-or:'صدى — Sada'
+application-label-pa:'صدى — Sada'
+application-label-pl:'صدى — Sada'
+application-label-pt:'صدى — Sada'
+application-label-pt-BR:'صدى — Sada'
+application-label-pt-PT:'صدى — Sada'
+application-label-ro:'صدى — Sada'
+application-label-ru:'صدى — Sada'
+application-label-si:'صدى — Sada'
+application-label-sk:'صدى — Sada'
+application-label-sl:'صدى — Sada'
+application-label-sq:'صدى — Sada'
+application-label-sr:'صدى — Sada'
+application-label-sr-Latn:'صدى — Sada'
+application-label-sv:'صدى — Sada'
+application-label-sw:'صدى — Sada'
+application-label-ta:'صدى — Sada'
+application-label-te:'صدى — Sada'
+application-label-th:'صدى — Sada'
+application-label-tl:'صدى — Sada'
+application-label-tr:'صدى — Sada'
+application-label-uk:'صدى — Sada'
+application-label-ur:'صدى — Sada'
+application-label-uz:'صدى — Sada'
+application-label-vi:'صدى — Sada'
+application-label-zh:'صدى — Sada'
+application-label-zh-CN:'صدى — Sada'
+application-label-zh-HK:'صدى — Sada'
+application-label-zh-TW:'صدى — Sada'
+application-label-zu:'صدى — Sada'
+  uses-feature-not-required: name='android.hardware.vr.headtracking' version='1'
+  uses-feature-not-required: name='com.oculus.feature.PASSTHROUGH'
+  uses-feature-not-required: name='com.oculus.feature.RENDER_MODEL'
+  uses-feature: name='android.hardware.faketouch'
+  uses-feature: name='android.hardware.screen.landscape'
+native-code: 'arm64-v8a'
+
+--- manifest (XR launch)
+A: http://schemas.android.com/apk/res/android:authorities(0x01010018)="org.khronos.openxr.runtime_broker;org.khronos.openxr.system_runtime_broker" (Raw: "org.khronos.openxr.runtime_broker;org.khronos.openxr.system_runtime_broker")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.intent.category.DEFAULT" (Raw: "android.intent.category.DEFAULT")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.intent.category.LAUNCHER" (Raw: "android.intent.category.LAUNCHER")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.feature.PASSTHROUGH" (Raw: "com.oculus.feature.PASSTHROUGH")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.feature.RENDER_MODEL" (Raw: "com.oculus.feature.RENDER_MODEL")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.intent.category.VR" (Raw: "com.oculus.intent.category.VR")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.ossplash.background" (Raw: "com.oculus.ossplash.background")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.permission.RENDER_MODEL" (Raw: "com.oculus.permission.RENDER_MODEL")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.supportedDevices" (Raw: "com.oculus.supportedDevices")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.vr.focusaware" (Raw: "com.oculus.vr.focusaware")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="org.khronos.openxr.OpenXRApiLayerService" (Raw: "org.khronos.openxr.OpenXRApiLayerService")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="org.khronos.openxr.OpenXRRuntimeService" (Raw: "org.khronos.openxr.OpenXRRuntimeService")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="org.khronos.openxr.intent.category.IMMERSIVE_HMD" (Raw: "org.khronos.openxr.intent.category.IMMERSIVE_HMD")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="org.khronos.openxr.permission.OPENXR" (Raw: "org.khronos.openxr.permission.OPENXR")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="org.khronos.openxr.permission.OPENXR_SYSTEM" (Raw: "org.khronos.openxr.permission.OPENXR_SYSTEM")
+
+--- native libraries
+lib/arm64-v8a/libc++_shared.so
+lib/arm64-v8a/libgodot_android.so
+lib/arm64-v8a/libgodotopenxrvendors.so
+lib/arm64-v8a/libopenxr_loader.so

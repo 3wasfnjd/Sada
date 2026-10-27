@@ -1,0 +1,4 @@
+Godot Engine v4.6.3.stable.official.7d41c59c4 - https://godotengine.org
+
+hero: 2409 triangles; heaviest room: 25 (56044 triangles, budget 60000)
+art test: 0 failure(s)
