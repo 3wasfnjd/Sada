@@ -36,7 +36,7 @@ var arm_l: Node3D
 var arm_r: Node3D
 var foot_l: Node3D
 var foot_r: Node3D
-var tail: Array = []        # shemagh tail segments (Node3D), swing with motion
+var tail: Array = []        # unused since the shemagh is one cloth (kept for the spring code)
 var eyes: Array = []        # [left, right]: Node3D, children 0 open / 1 happy / 2 closed
 var brows: Array = []
 var mouth: Node3D           # children 0 smile / 1 open / 2 worried / 3 small
@@ -75,16 +75,6 @@ func build(as_ghost: bool, ghost_material: Material = null) -> void:
 		drape.material_override = shemagh_material()
 	head.add_child(drape)
 	_face_parts()
-	# the shemagh's free end on his left: hangs beside the face, then onto the chest
-	var pivot := Node3D.new(); pivot.position = Vector3(0.175, -0.035, 0.125); head.add_child(pivot)
-	var parent: Node3D = pivot
-	for k in 2:
-		var seg := Node3D.new()
-		seg.position = Vector3.ZERO if k == 0 else Vector3(-0.02, -0.17, 0.005)
-		var fm := _mesh(_flap_mesh(k))
-		fm.material_override = shemagh_material()
-		seg.add_child(fm)
-		parent.add_child(seg); tail.append(seg); parent = seg
 	arm_l = _arm(-1); arm_r = _arm(1)
 	foot_l = _foot(-1); foot_r = _foot(1)
 	if ghost:
@@ -170,71 +160,85 @@ func _head_mesh() -> ArrayMesh:
 	return lp.commit()
 
 
-## The shemagh, worn the Saudi way: a square folded into a triangle, its folded edge straight
-## across the forehead with the raised crease (البنية) in the middle, under the iqal; the sides fall
-## flat beside the cheeks to the shoulders; the triangle's point falls down the back with a
-## fringe. Left end hangs on the chest (its own swinging node), right end thrown back over the
-## shoulder. White vertex colours (light only): the check pattern is the texture.
+## The shemagh, worn the Saudi way, as ONE continuous cloth: a square folded into a triangle, its
+## folded edge straight across the forehead with the raised crease (البنية) in the middle, under
+## the iqal; it wraps the head, leaves the face open, falls beside the cheeks to the shoulders;
+## the left end hangs on the chest, the right end is thrown back over the shoulder, and the
+## triangle's point falls down the back. One grid of cloth (columns round the head, rows from the
+## crown down), so there are no seams. White vertex colours (light only): the pattern is the texture.
+const SH_GAP := 0.78        # half-width of the face opening, radians either side of the front
+const SH_BROW := 1.0        # polar angle (from the crown) of the folded edge over the forehead
+
+func _shemagh_point(th: float, v: float) -> Vector3:
+	# th: angle round the head (0 = front, + = his left). v: 0 at the crown, 1 at the ear line,
+	# beyond 1 the cloth falls (v - 1 = how far down, as a share of this column's length)
+	var R := HR * Vector3(1.13, 1.08, 1.13)
+	var c := HC + Vector3(0, 0.012, -0.006)
+	var al := minf(v, 1.0) * 1.85
+	# the crease: the folded edge rises to a small peak in the middle of the forehead
+	var crease := exp(-pow(th / 0.2, 2.0)) * exp(-pow((al - SH_BROW) / 0.22, 2.0))
+	var r := 1.0 + crease * 0.12
+	var p := c + Vector3(sin(al) * sin(th) * R.x * r, cos(al) * R.y * r + crease * 0.03, sin(al) * cos(th) * R.z * r)
+	if v <= 1.0:
+		return p
+	var t := v - 1.0
+	var a := absf(th)
+	# how far each column falls: the front ends long (to the chest), the sides rest on the
+	# shoulders, the back runs down to the triangle's point
+	var front := clampf(1.0 - (a - SH_GAP) / 0.55, 0.0, 1.0)
+	var back := clampf((a - 2.0) / (PI - 2.0), 0.0, 1.0)
+	var length := 0.13 + 0.17 * front + 0.2 * back * back
+	var y := p.y - t * length
+	var out := Vector2(sin(th), cos(th))
+	# flare out over the shoulders as it falls
+	var flare := 0.055 * smoothstep(0.0, 0.5, t) * (1.0 - back * 0.5)
+	var q := Vector3(p.x + out.x * flare, y, p.z + out.y * flare)
+	# the back narrows to the point
+	if back > 0.0:
+		q.x *= lerpf(1.0, 1.0 - t * 0.9, back)
+	# the front ends drop straight in front of the shoulders
+	if front > 0.0:
+		q.z += front * 0.04 * smoothstep(0.0, 0.4, t)
+	# his right end is thrown back over the shoulder
+	if th < 0.0 and front > 0.0:
+		var k := front * smoothstep(0.25, 1.0, t)
+		q = q.lerp(Vector3(q.x - 0.03, p.y - 0.2, -0.17 - t * 0.05), k)
+	return q
+
+
 func _drape_mesh() -> ArrayMesh:
 	var lp := _lp(15)
 	lp.shade_jitter = 0.02
-	# over the head: top, sides and back down to the ears, open for the face
-	lp.blob(HC + Vector3(0, 0.012, -0.006), HR * Vector3(1.13, 1.08, 1.13), 0.012, CLOTH, 2, -0.62,
-		func(d: Vector3) -> bool: return not (d.z > 0.3 and d.y < 0.52))
-	# the crease over the forehead: a small upright diamond peak
-	lp.xf = Transform3D(Basis(Vector3.RIGHT, -0.5) * Basis(Vector3.BACK, PI / 4), HC + Vector3(0, 0.13, 0.145))
-	lp.block(Vector3.ZERO, Vector3(0.045, 0.045, 0.03), 0.004, 0.0, CLOTH)
-	lp.xf = Transform3D.IDENTITY
-	# the sides: flat cloth beside the cheeks down to the shoulders, a little flared
-	for sd in [-1.0, 1.0]:
-		var rows := [[HC.y + 0.02, 0.19, 0.12, -0.12], [HC.y - 0.1, 0.2, 0.125, -0.13],
-			[0.0, 0.215, 0.13, -0.14], [-0.055, 0.245, 0.12, -0.15]]
-		var grid := []
-		for r in rows:
-			var row := []
-			for k in 3:
-				var z: float = lerpf(r[2], r[3], k / 2.0)
-				row.append(Vector3(sd * ((r[1] as float) + 0.008 * absf(k - 1)), r[0], z))
-			grid.append(row)
-		_sheet(lp, grid, Vector3(0, HC.y * 0.5, 0))
-	# the back: the triangle's point falls down the back
-	var back := [[Vector3(-0.17, HC.y - 0.02, -0.15), Vector3(0, HC.y - 0.02, -0.18), Vector3(0.17, HC.y - 0.02, -0.15)],
-		[Vector3(-0.2, -0.04, -0.17), Vector3(0, -0.04, -0.21), Vector3(0.2, -0.04, -0.17)],
-		[Vector3(-0.1, -0.15, -0.2), Vector3(0, -0.16, -0.215), Vector3(0.1, -0.15, -0.2)]]
-	_sheet(lp, back, Vector3(0, 0.0, 0))
-	lp.tri(back[2][0], back[2][2], Vector3(0, -0.25, -0.215), CLOTH, Vector3(0, -0.2, 0))
-	for j in 3:   # fringe at the point
-		lp.block(Vector3(-0.016 + 0.016 * j, -0.265, -0.215), Vector3(0.007, 0.03, 0.007), 0.0, 0.0, CLOTH)
-	# the right end thrown back over the shoulder, then down the back
-	lp.xf = Transform3D(Basis(Vector3.BACK, 0.35) * Basis(Vector3.RIGHT, 0.15), Vector3(-0.2, -0.04, -0.03))
-	lp.block(Vector3.ZERO, Vector3(0.12, 0.014, 0.13), 0.004, 0.003, CLOTH)
-	lp.xf = Transform3D(Basis(Vector3.RIGHT, 0.2), Vector3(-0.16, -0.13, -0.22))
-	lp.block(Vector3.ZERO, Vector3(0.1, 0.16, 0.014), 0.004, 0.003, CLOTH)
-	lp.xf = Transform3D.IDENTITY
-	return lp.commit()
-
-
-## a thin sheet of cloth through a grid of points (rows of equal length)
-func _sheet(lp: LP, grid: Array, inside: Vector3) -> void:
-	for i in grid.size() - 1:
-		for k in (grid[i] as Array).size() - 1:
-			var a: Vector3 = grid[i][k]; var b: Vector3 = grid[i][k + 1]
-			var c: Vector3 = grid[i + 1][k]; var d: Vector3 = grid[i + 1][k + 1]
-			var ins := Vector3(inside.x, (a.y + c.y) / 2.0, inside.z)
+	var cols := 40
+	var rows := [0.0, 0.08, 0.17, 0.27, 0.38, 0.48, 0.54, 0.6, 0.68, 0.76, 0.84, 0.92, 1.0,
+		1.18, 1.36, 1.55, 1.75, 1.9, 2.0]
+	var brow_v := SH_BROW / 1.85
+	var grid := []
+	for v in rows:
+		var row := []
+		for i in cols + 1:
+			row.append(_shemagh_point(-PI + TAU * i / cols, v))
+		grid.append(row)
+	for j in rows.size() - 1:
+		var v0: float = rows[j]; var v1: float = rows[j + 1]
+		for i in cols:
+			var th := -PI + TAU * (i + 0.5) / cols
+			# the face opening: below the folded edge, between the front ends
+			if absf(th) < SH_GAP and v1 > brow_v + 0.001:
+				continue
+			var a: Vector3 = grid[j][i]; var b: Vector3 = grid[j][i + 1]
+			var c: Vector3 = grid[j + 1][i]; var d: Vector3 = grid[j + 1][i + 1]
+			var ins := Vector3(0, minf((a.y + c.y) / 2.0, HC.y), -0.01) if v0 >= 1.0 else HC
 			lp.tri(a, b, d, CLOTH, ins); lp.tri(a, d, c, CLOTH, ins)
-
-
-## the hanging end of the shemagh: beside the face (0), then lying on the chest (1)
-func _flap_mesh(k: int) -> ArrayMesh:
-	var lp := _lp(20 + k)
-	if k == 0:
-		lp.xf = Transform3D(Basis(Vector3.UP, 0.35), Vector3.ZERO)   # turned to follow the shoulder
-		lp.block(Vector3(-0.02, -0.085, 0), Vector3(0.12, 0.18, 0.014), 0.004, 0.003, CLOTH)
-		lp.xf = Transform3D.IDENTITY
-	else:
-		lp.block(Vector3(0, -0.07, 0), Vector3(0.095, 0.15, 0.016), 0.005, 0.004, CLOTH)
-		for j in 4:   # the fringe: short white threads
-			lp.block(Vector3(-0.036 + 0.024 * j, -0.158, 0), Vector3(0.008, 0.03, 0.008), 0.0, 0.0, CLOTH)
+	# fringe: short threads at the hanging end on the chest and at the point on the back
+	var last: Array = grid[rows.size() - 1]
+	for i in cols:
+		var th := -PI + TAU * (i + 0.5) / cols
+		var a := absf(th)
+		var tip := (th > 0.0 and a > SH_GAP and a < SH_GAP + 0.35) or a > PI - 0.25
+		if tip:
+			var p: Vector3 = ((last[i] as Vector3) + (last[i + 1] as Vector3)) / 2.0
+			lp.block(p + Vector3(0, -0.014, 0), Vector3(0.008, 0.03, 0.008), 0.0, 0.0, CLOTH)
 	return lp.commit()
 
 
