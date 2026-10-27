@@ -1,0 +1,1381 @@
+<title>صدى</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#151330">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@700&family=Readex+Pro:wght@400;600&display=swap">
+<style>
+/* Layout: one screen, the paper diorama fills it; a thin icon rail at the bottom. Single night look by design. */
+:root {
+  --night: #151330;      /* the room's darkness, a blue-violet ink */
+  --ink: #0d0c1f;
+  --paper: #efe2c8;      /* cut paper */
+  --lantern: #ffb547;    /* the hero's light */
+  --echo: #8fd8ff;       /* memories */
+  --mute: #8d86b8;
+  --display: "Aref Ruqaa", "Amiri", "Noto Naskh Arabic", serif;
+  --ui: "Readex Pro", "Noto Sans Arabic", system-ui, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--night); color: var(--paper); font-family: var(--ui);
+  overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#app { position: fixed; inset: 0; display: flex; flex-direction: column; }
+#stage { position: relative; flex: 1; min-height: 0; }
+#cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#top {
+  position: absolute; top: 0; inset-inline: 0; display: flex; align-items: center; justify-content: space-between;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+  pointer-events: none; font-variant-numeric: tabular-nums;
+}
+#room { font-family: var(--display); font-size: 30px; line-height: 1; color: var(--paper); opacity: .9; }
+#helps { display: flex; gap: 5px; align-items: center; }
+#helps i { width: 9px; height: 9px; border-radius: 50%; background: var(--lantern); box-shadow: 0 0 8px var(--lantern); }
+#helps i.off { background: transparent; box-shadow: none; outline: 1.5px solid #ffb54755; }
+#rail {
+  display: flex; justify-content: center; gap: 10px; flex-wrap: nowrap;
+  padding: 8px max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 12px) max(16px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(transparent, #0d0c1fcc 40%);
+}
+#rail button {
+  width: 52px; height: 52px; border-radius: 16px; border: 1.5px solid #efe2c833; background: #1d1a40;
+  color: var(--paper); display: grid; place-items: center; padding: 0; cursor: pointer; position: relative;
+  transition: transform .12s, background .2s, border-color .2s;
+}
+#rail button:active { transform: scale(.92); }
+#rail button:focus-visible { outline: 2px solid var(--lantern); outline-offset: 2px; }
+#rail button svg { width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#rail button.armed { background: #ffb54733; border-color: var(--lantern); color: var(--lantern); }
+#rail button.pulse { animation: pulse 1.4s ease-in-out infinite; }
+#rail button.dim { opacity: .35; }
+@keyframes pulse { 50% { border-color: var(--lantern); box-shadow: 0 0 16px #ffb54766; } }
+#title {
+  position: absolute; inset: 0; display: grid; place-items: center; text-align: center; background: radial-gradient(circle at 50% 42%, #2a2560 0%, var(--night) 62%);
+  cursor: pointer; z-index: 5; padding-inline: max(16px, env(safe-area-inset-left, 0px));
+}
+#title h1 { font-family: var(--display); font-weight: 700; font-size: clamp(88px, 30vw, 160px); margin: 0; line-height: 1; color: var(--paper);
+  text-shadow: 0 0 40px #ffb54755, 0 6px 0 #0d0c1f; }
+#title h1 span { display: inline-block; animation: echo 3.2s ease-in-out infinite; color: var(--echo); opacity: 0; position: absolute; inset: 0; text-align: center; text-shadow: none; z-index: -1; }
+@keyframes echo { 0% { opacity: 0; transform: translateX(0); } 40% { opacity: .35; } 100% { opacity: 0; transform: translateX(46px); } }
+#title p { margin: 18px 0 0; font-size: 15px; color: var(--mute); letter-spacing: .02em; }
+#title .wrap { position: relative; }
+#title h1 { position: relative; }
+#toast { position: absolute; left: 50%; top: 22%; transform: translate(-50%, 0); font-family: var(--display); font-size: 44px; color: var(--lantern);
+  text-shadow: 0 0 20px #ffb54788; pointer-events: none; opacity: 0; transition: opacity .3s, transform .3s; }
+#toast.on { opacity: 1; transform: translate(-50%, -8px); }
+@media (prefers-reduced-motion: reduce) { #title h1 span { animation: none; } #rail button.pulse { animation: none; } }
+</style>
+<div id="app" dir="rtl">
+  <div id="stage">
+    <canvas id="cv" aria-label="لوح اللعب"></canvas>
+    <div id="top"><div id="room">١</div><div id="helps" aria-label="المساعدات"></div></div>
+    <div id="toast"></div>
+    <div id="title" role="button" tabindex="0" aria-label="ابدأ">
+      <div class="wrap"><h1>صدى<span aria-hidden="true">صدى</span></h1><p>المس للبدء</p></div>
+    </div>
+  </div>
+  <nav id="rail" aria-label="أدوات">
+    <button id="bWait" aria-label="انتظر خطوة"><svg viewBox="0 0 24 24"><path d="M7 3h10M7 21h10"/><path d="M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9"/></svg></button>
+    <button id="bUndo" aria-label="تراجع خطوة"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+    <button id="bBack" aria-label="جولة للخلف"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg></button>
+    <button id="bPin" aria-label="ثبّت تمثالًا على دائرة"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="3"/><path d="M8.5 21v-5.5c0-2 1.6-3.5 3.5-3.5s3.5 1.5 3.5 3.5V21"/><path d="M5 21h14"/></svg></button>
+    <button id="bHint" aria-label="تلميح"><svg viewBox="0 0 24 24"><path d="M7 15c-1.5 0-2.5-1.3-2.5-3.2S5.6 8 7 8s2.2 1.6 2.2 3.6S8.4 15 7 15z"/><path d="M15.5 20c-1.4 0-2.3-1.2-2.3-3s1-3.6 2.3-3.6 2.1 1.6 2.1 3.4-.8 3.2-2.1 3.2z"/><circle cx="6" cy="18.2" r="1"/><circle cx="17" cy="9.5" r="1"/></svg></button>
+    <button id="bWatch" aria-label="شاهد الحل"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><path d="M10.5 9.5v5l4-2.5z" fill="currentColor"/></svg></button>
+  </nav>
+</div>
+
+<script>
+// ===== صدى — pure game logic (no rendering) — v0.2 =====
+// Door kinds:
+//   hold    — open while someone stands on its plate
+//   timed   — like hold, but stays open TIMER more ticks after the plate is left
+//   inverse — open by default, CLOSED while someone stands on its plate
+// Any door with someone standing inside it stays open.
+(function (root) {
+  const DIRS = { U: [0, 1], D: [0, -1], L: [-1, 0], R: [1, 0], W: [0, 0] };
+  const MOVES = ['U', 'D', 'L', 'R'];
+  const TIMER = 3;
+
+  function rng(seed) {
+    let s = seed >>> 0;
+    return function () {
+      s = (s + 0x6D2B79F5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const clampI = (v, a, b) => Math.max(a, Math.min(b, v));
+  const ri = (r, a, b) => a + Math.floor(r() * (b - a + 1));
+  const pick = (r, arr) => arr[Math.floor(r() * arr.length)];
+  const idx = (room, x, y) => y * room.W + x;
+  const same = (a, b) => a.x === b.x && a.y === b.y;
+  function doorAt(room, x, y) { for (let i = 0; i < room.doors.length; i++) if (room.doors[i].x === x && room.doors[i].y === y) return i; return -1; }
+
+  // positions arrays carry .timers (one per door, 0 for non-timed)
+  function withTimers(pos, timers) { pos.timers = timers; return pos; }
+  function plateOn(room, pos, door) {
+    return room.plates.some(p => p.door === door && (pos.some(e => e.x === p.x && e.y === p.y) || (room.pinned || []).some(e => e.x === p.x && e.y === p.y)));
+  }
+
+  function doorStates(room, pos) {
+    const timers = pos.timers || [];
+    return room.doors.map((d, i) => {
+      const on = plateOn(room, pos, i);
+      let open = d.kind === 'inverse' ? !on : (on || (d.kind === 'timed' && (timers[i] || 0) > 0));
+      if (pos.some(e => e.x === d.x && e.y === d.y)) open = true;
+      return open;
+    });
+  }
+
+  function step(room, pos, actions) {
+    const open = doorStates(room, pos);
+    const next = pos.map((e, i) => {
+      const d = DIRS[actions[i] || 'W'];
+      const moving = !!(d[0] || d[1]);
+      const nx = e.x + d[0], ny = e.y + d[1];
+      if (nx < 0 || ny < 0 || nx >= room.W || ny >= room.H) return { x: e.x, y: e.y, blocked: moving };
+      if (room.wall[idx(room, nx, ny)]) return { x: e.x, y: e.y, blocked: moving };
+      const di = doorAt(room, nx, ny);
+      if (di >= 0 && !open[di] && !(e.x === nx && e.y === ny)) return { x: e.x, y: e.y, blocked: true };
+      return { x: nx, y: ny, blocked: false };
+    });
+    const t0 = pos.timers || [];
+    return withTimers(next, room.doors.map((d, i) => d.kind !== 'timed' ? 0 : plateOn(room, pos, i) ? TIMER : Math.max(0, (t0[i] || 0) - 1)));
+  }
+
+  function startPos(room, n) { return withTimers(Array.from({ length: n }, () => ({ ...room.start })), room.doors.map(() => 0)); }
+
+  // states[t] = positions (echoes..., player) after t ticks
+  function run(room, echoes, player) {
+    let pos = startPos(room, echoes.length + 1);
+    const states = [pos];
+    for (let t = 0; t < player.length; t++) {
+      pos = step(room, pos, echoes.map(e => e[t] || 'W').concat([player[t]]));
+      states.push(pos);
+    }
+    return states;
+  }
+
+  function bfsPath(room, from, to, doorsPassable) {
+    const W = room.W, H = room.H, prev = new Int32Array(W * H).fill(-2);
+    const q = [idx(room, from.x, from.y)]; prev[q[0]] = -1;
+    let head = 0;
+    while (head < q.length) {
+      const c = q[head++]; const cx = c % W, cy = (c / W) | 0;
+      if (cx === to.x && cy === to.y) {
+        const path = []; let k = c;
+        while (k !== -1) { path.push({ x: k % W, y: (k / W) | 0 }); k = prev[k]; }
+        return path.reverse();
+      }
+      for (const m of MOVES) {
+        const nx = cx + DIRS[m][0], ny = cy + DIRS[m][1];
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const n = idx(room, nx, ny);
+        if (prev[n] !== -2 || room.wall[n]) continue;
+        if (!doorsPassable) { const di = doorAt(room, nx, ny); if (di >= 0 && room.doors[di].kind !== 'inverse') continue; }
+        prev[n] = c; q.push(n);
+      }
+    }
+    return null;
+  }
+
+  // walk to each target in turn (shortest paths), waiting whenever the next step is blocked;
+  // waits[k] extra ticks are spent standing on intermediate target k
+  function routeMulti(room, echoes, targets, waits = []) {
+    const acts = []; let from = { ...room.start };
+    for (let k = 0; k < targets.length; k++) {
+      const path = bfsPath(room, from, targets[k], true);
+      if (!path) return null;
+      let pi = 0, guard = 0;
+      while (pi < path.length - 1 && guard++ < 40) {
+        const states = run(room, echoes, acts);
+        const pos = states[states.length - 1];
+        const me = pos[pos.length - 1];
+        const nxt = path[pi + 1];
+        const m = MOVES.find(mm => me.x + DIRS[mm][0] === nxt.x && me.y + DIRS[mm][1] === nxt.y);
+        const after = step(room, pos, echoes.map(e => e[acts.length] || 'W').concat([m]));
+        if (same(after[after.length - 1], nxt)) { acts.push(m); pi++; } else acts.push('W');
+      }
+      if (pi !== path.length - 1) return null;
+      if (k < targets.length - 1) for (let w = 0; w < (waits[k] || 0); w++) acts.push('W');
+      from = targets[k];
+    }
+    return acts;
+  }
+
+  const plateOf = (room, door) => room.plates.find(p => p.door === door);
+
+  // tasks: [[doorIdx, ...], ...] — one echo per task, pressing its doors' plates in order.
+  // playerFirst: door indices whose plates the player presses on the way (timed doors only).
+  function solveTasks(room, tasks, playerFirst = []) {
+    const relay = tasks.map((t, i) => t.length > 1 ? i : -1).filter(i => i >= 0);
+    const combos = relay.length ? cartesian(relay.map(() => [0, 1, 2, 3, 4, 5])) : [[]];
+    for (const combo of combos) {
+      const echoes = []; let ok = true;
+      for (let j = 0; j < tasks.length; j++) {
+        const waits = relay.includes(j) ? Array(tasks[j].length - 1).fill(combo[relay.indexOf(j)]) : [];
+        const a = routeMulti(room, echoes, tasks[j].map(di => plateOf(room, di)), waits);
+        if (!a) { ok = false; break; }
+        echoes.push(a);
+      }
+      if (!ok) continue;
+      for (const pw of [0, 1, 2]) {
+        const targets = playerFirst.map(di => plateOf(room, di)).concat([room.exit]);
+        const player = routeMulti(room, echoes, targets, playerFirst.map(() => pw));
+        if (player && reaches(room, echoes, player)) return { echoes, player };
+      }
+    }
+    return null;
+  }
+  function cartesian(lists) { return lists.reduce((acc, l) => acc.flatMap(a => l.map(x => a.concat([x]))), [[]]); }
+  function reaches(room, echoes, player) {
+    const L = Math.max(player.length, ...echoes.map(e => e.length), 0);
+    const st = run(room, echoes.map(e => pad(e, L)), player);
+    return same(st[st.length - 1][echoes.length], room.exit);
+  }
+
+  // exact check: can the player alone reach the exit within L ticks? (BFS over position + door timers)
+  function aloneSolvable(room, L) {
+    const start = startPos(room, 1);
+    const key = p => p[0].x + ',' + p[0].y + '|' + p.timers.join('');
+    let frontier = [start]; const seen = new Set([key(start)]);
+    for (let t = 0; t < L; t++) {
+      const nextF = [];
+      for (const p of frontier) for (const a of ['U', 'D', 'L', 'R', 'W']) {
+        const n = step(room, p, [a]);
+        if (a !== 'W' && n[0].blocked) continue;
+        if (same(n[0], room.exit)) return true;
+        const k = key(n); if (!seen.has(k)) { seen.add(k); nextF.push(n); }
+      }
+      frontier = nextF;
+    }
+    return false;
+  }
+
+  function regionConnected(room, cells) {
+    const set = new Set(cells.filter(([x, y]) => !room.wall[idx(room, x, y)]).map(([x, y]) => x + ',' + y));
+    if (!set.size) return false;
+    const first = set.values().next().value; const seen = new Set([first]); const q = [first];
+    while (q.length) {
+      const [x, y] = q.pop().split(',').map(Number);
+      for (const m of MOVES) { const k = (x + DIRS[m][0]) + ',' + (y + DIRS[m][1]); if (set.has(k) && !seen.has(k)) { seen.add(k); q.push(k); } }
+    }
+    return seen.size === set.size;
+  }
+
+  // ---------- generator ----------
+  function difficulty(level) {
+    const k = level <= 2 ? 2 : level <= 8 ? 2 + (level % 2) : level <= 18 ? 3 : 3 + (level % 3 === 0 ? 1 : 0);
+    return {
+      k,
+      W: level <= 3 ? 4 : level < 10 ? 5 : 6,
+      deep: Math.min(0.6, 0.1 + level * 0.04),
+      obst: Math.min(0.2, 0.05 + level * 0.01),
+      slack: Math.max(1, 2 - Math.floor(level / 8)),
+      tall: Math.min(0.6, 0.2 + level * 0.02),
+      pTimed: level < 2 ? 0 : Math.min(0.6, 0.3 + level * 0.03),
+      pInverse: level < 4 ? 0 : Math.min(0.4, 0.15 + level * 0.015),
+      allowFull: level <= 1 ? 0.3 : 0.12, // chance to keep a room that needs one echo per gate
+    };
+  }
+
+  // all ways to split n ordered gates into e contiguous groups
+  function compositions(n, e) {
+    const out = [];
+    (function rec(startI, left, acc) {
+      if (left === 1) { out.push(acc.concat([n - startI])); return; }
+      for (let size = 1; size <= n - startI - (left - 1); size++) rec(startI + size, left - 1, acc.concat([size]));
+    })(0, e, []);
+    return out;
+  }
+
+  // fewest echoes that solve the room, by chaining consecutive gates onto one echo
+  function minimalTasks(room) {
+    const gates = room.doors.map((d, i) => i).filter(i => room.doors[i].kind !== 'inverse');
+    for (let e = 1; e <= gates.length; e++) {
+      for (const comp of compositions(gates.length, e)) {
+        const tasks = []; let at = 0;
+        for (const size of comp) { tasks.push(gates.slice(at, at + size)); at += size; }
+        const sol = solveTasks(room, tasks);
+        if (sol) return { tasks, sol };
+      }
+    }
+    return null;
+  }
+
+  function generate(level, seed) {
+    for (let attempt = 0; attempt < 400; attempt++) {
+      const r = rng(seed + attempt * 7919);
+      const d = difficulty(level);
+      const k = d.k, W = d.W;
+      const hs = []; for (let i = 0; i <= k; i++) hs.push(i === 0 ? 2 : r() < d.tall ? 2 : 1);
+      const H = hs.reduce((a, b) => a + b, 0) + k;
+      const room = { W, H, wall: new Uint8Array(W * H), doors: [], plates: [], regions: [] };
+      let y = 0;
+      for (let i = 0; i <= k; i++) {
+        const rows = []; for (let j = 0; j < hs[i]; j++) rows.push(y + j);
+        room.regions.push(rows); y += hs[i];
+        if (i < k) {
+          for (let x = 0; x < W; x++) room.wall[idx(room, x, y)] = 1;
+          const px = room.doors.length ? room.doors[room.doors.length - 1].x : ri(r, 0, W - 1);
+          const dx = clampI(px + ri(r, -2, 2), 0, W - 1); room.wall[idx(room, dx, y)] = 0;
+          const kind = i > 0 && r() < d.pInverse ? 'inverse' : r() < d.pTimed ? 'timed' : 'hold';
+          room.doors.push({ x: dx, y, kind });
+          y++;
+        }
+      }
+      const gateCount = room.doors.filter(dd => dd.kind !== 'inverse').length;
+      if (gateCount < 1) continue;
+      const cellsOf = i => { const c = []; for (const yy of room.regions[i]) for (let x = 0; x < W; x++) c.push([x, yy]); return c; };
+      const near = new Set(); room.doors.forEach(dd => { near.add(dd.x + ',' + (dd.y - 1)); near.add(dd.x + ',' + (dd.y + 1)); });
+      for (let i = 0; i <= k; i++) {
+        const cells = cellsOf(i);
+        for (const [x, yy] of cells) {
+          if (near.has(x + ',' + yy) || r() > d.obst) continue;
+          room.wall[idx(room, x, yy)] = 1;
+          if (!regionConnected(room, cells)) room.wall[idx(room, x, yy)] = 0;
+        }
+      }
+      const free = i => cellsOf(i).filter(([x, yy]) => !room.wall[idx(room, x, yy)] && !near.has(x + ',' + yy));
+      const used = new Set();
+      const take = list => { const c = list.filter(([x, yy]) => !used.has(x + ',' + yy)); if (!c.length) return null; const p = pick(r, c); used.add(p[0] + ',' + p[1]); return { x: p[0], y: p[1] }; };
+      const bottom = free(0).filter(([, yy]) => yy === 0);
+      room.start = take(bottom.length ? bottom : free(0));
+      const topRow = free(k).filter(([, yy]) => yy === H - 1);
+      room.exit = take(topRow.length ? topRow : free(k));
+      if (!room.start || !room.exit) continue;
+
+      // gate plates: mostly on the near side so one echo can walk between them
+      let bad = false;
+      for (let i = 0; i < k; i++) {
+        if (room.doors[i].kind === 'inverse') continue;
+        let reg = 0;
+        if (i > 0 && r() < d.deep) reg = ri(r, 1, i);
+        const minDist = room.doors[i].kind === 'timed' ? TIMER + 2 : 2;
+        const p = take(free(reg).filter(([x, yy]) => Math.abs(x - room.doors[i].x) + Math.abs(yy - room.doors[i].y) >= minDist));
+        if (!p) { bad = true; break; }
+        room.plates.push({ x: p.x, y: p.y, door: i });
+      }
+      if (bad) continue;
+
+      let best = minimalTasks(room);
+      if (!best) continue;
+      // the heart of v0.3: fewer echoes than gates, so echoes must move in sync with you
+      if (best.tasks.length >= gateCount && r() > d.allowFull) continue;
+
+      // inverse plates on cells an echo crosses
+      let invOk = true;
+      for (let i = 0; i < k; i++) {
+        if (room.doors[i].kind !== 'inverse') continue;
+        const sol = best.sol;
+        const L0 = Math.max(sol.player.length, ...sol.echoes.map(e => e.length));
+        const st = run(room, sol.echoes.map(e => pad(e, L0)), pad(sol.player, L0));
+        const crossed = [];
+        for (let t = 1; t < st.length; t++) for (let j = 0; j < sol.echoes.length; j++) {
+          const c = st[t][j]; const key = c.x + ',' + c.y;
+          if (used.has(key) || near.has(key) || doorAt(room, c.x, c.y) >= 0 || room.plates.some(p => same(p, c))) continue;
+          if (sol.echoes.every((_, jj) => !same(st[st.length - 1][jj], c))) crossed.push([c.x, c.y]);
+        }
+        const p = crossed.length ? take(crossed) : null;
+        if (!p) { invOk = false; break; }
+        room.plates.push({ x: p.x, y: p.y, door: i });
+        const again = solveTasks(room, best.tasks);
+        if (!again) { invOk = false; break; }
+        best = { tasks: best.tasks, sol: again };
+      }
+      if (!invOk) continue;
+
+      const sol = best.sol;
+      const len = Math.max(sol.player.length, ...sol.echoes.map(e => e.length));
+      room.L = len + d.slack;
+      room.E = best.tasks.length;
+      room.par = room.E;
+      room.tasks = best.tasks;
+      room.solution = sol;
+      if (!verify(room)) continue;
+      room.seed = seed; room.level = level;
+      room.features = {
+        timed: room.doors.some(dd => dd.kind === 'timed'),
+        sync: best.tasks.some(t => t.length > 1),
+        inverse: room.doors.some(dd => dd.kind === 'inverse'),
+      };
+      return room;
+    }
+    return null;
+  }
+
+  function verify(room, allowAlone) {
+    const s = room.solution;
+    if (!s || s.player.length > room.L) return false;
+    if (s.echoes.length !== room.E || s.echoes.some(e => e.length > room.L)) return false;
+    if (!reaches(room, s.echoes.map(e => pad(e, room.L)), s.player)) return false;
+    return allowAlone ? true : !aloneSolvable(room, room.L);
+  }
+  const pad = (a, L) => a.concat(Array(Math.max(0, L - a.length)).fill('W'));
+
+  // hand-made opening rooms (rows listed top -> bottom)
+  // # wall  . floor  S start  E exit
+  // a/b/c hold door, A/B/C timed door; 1/2/3 plate for door a|A / b|B / c|C; x/y/z inverse plate (makes that door inverse)
+  // short demonstration rooms; L is computed from the solution (+1 spare tick)
+  const TUTORIAL = [
+    { map: ['.E.', '...', '.S.'], alone: true },
+    { map: ['.E.', '#a#', '1.S'], tasks: [[0]] },
+    { map: ['E..', '#b#', '...', '#a#', '21S'], tasks: [[0, 1]] },
+    { map: ['.E.', '#A#', '...', '1.S'], alone: true },
+    { map: ['E..', '#b#', 'y..', '#a#', '1.S'], tasks: [[0]] },
+  ];
+  function fromMap(def, level) {
+    const rows = def.map.slice().reverse(); const H = rows.length, W = rows[0].length;
+    const room = { W, H, wall: new Uint8Array(W * H), doors: [], plates: [], L: def.L, level, tutorial: true };
+    const doorDefs = [], plateDefs = [];
+    rows.forEach((row, y) => [...row].forEach((ch, x) => {
+      if (ch === '#') room.wall[y * W + x] = 1;
+      else if (ch === 'S') room.start = { x, y };
+      else if (ch === 'E') room.exit = { x, y };
+      else if (/[a-cA-C]/.test(ch)) doorDefs.push({ id: ch.toLowerCase(), x, y, kind: ch === ch.toUpperCase() ? 'timed' : 'hold' });
+      else if (/[1-3]/.test(ch)) plateDefs.push({ x, y, id: 'abc'[+ch - 1], inv: false });
+      else if (/[x-z]/.test(ch)) plateDefs.push({ x, y, id: 'abc'['xyz'.indexOf(ch)], inv: true });
+    }));
+    doorDefs.sort((a, b) => a.y - b.y);
+    doorDefs.forEach(dd => room.doors.push({ x: dd.x, y: dd.y, kind: dd.kind }));
+    plateDefs.forEach(p => { const di = doorDefs.findIndex(dd => dd.id === p.id); if (p.inv) room.doors[di].kind = 'inverse'; room.plates.push({ x: p.x, y: p.y, door: di }); });
+    const gates = room.doors.map((dd, i) => i).filter(i => room.doors[i].kind !== 'inverse');
+    if (def.alone) { room.tasks = []; room.solution = solveTasks(room, [], gates); }
+    else { room.tasks = def.tasks; room.solution = solveTasks(room, def.tasks); }
+    room.E = room.par = room.tasks.length;
+    if (!def.L && room.solution) room.L = Math.max(room.solution.player.length, ...room.solution.echoes.map(e => e.length)) + 1;
+    return room;
+  }
+
+  function roomFor(n, runSeed) { // n = 1-based room number in a run
+    if (n <= TUTORIAL.length) return fromMap(TUTORIAL[n - 1], n);
+    return generate(n - TUTORIAL.length, (runSeed * 1000003 + n * 7919) >>> 0);
+  }
+
+  root.EchoLogic = { compositions, minimalTasks, DIRS, MOVES, TIMER, rng, step, run, startPos, doorStates, doorAt, generate, verify, roomFor, pad, bfsPath, difficulty, TUTORIAL, fromMap, solveTasks, aloneSolvable };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+// ===== صدى — mobile 2D: a cut-paper diorama lit by the hero's lantern =====
+// Rules and rooms come from logic.js (EchoLogic), the same tested code as every other version.
+// This file only draws and handles input. Board space: cell (x, y), y = 0 is the bottom row.
+(() => {
+'use strict';
+const E = window.EchoLogic;
+const TICK = 230;                 // ms per tick
+const START_HELP = 2, MAX_HELP = 5;
+const GLYPH = [                   // door / plate identity: colour + shape (never colour alone)
+  { c: '#ffb547', n: 0 },         // circle
+  { c: '#ff6fae', n: 3 },         // triangle
+  { c: '#7cf0b5', n: 4 },         // square
+  { c: '#b79bff', n: 4, rot: Math.PI / 4 }, // diamond
+];
+const PAL = {
+  floorA: '#3a3470', floorB: '#35306a', floorEdge: '#2a255a', floorHi: '#4a4388',
+  wallTop: '#efe2c8', wallTop2: '#e2d1b0', wallFace: '#6c5fc4', wallFace2: '#5a4fae', wallDeep: '#3d3488',
+  ink: '#0d0c1f', night: 'rgba(13,11,34,', paper: '#efe2c8',
+  cloak: '#2f2a6b', cloakHi: '#4a42a0', scarf: '#ff9a3c', face: '#f6e7cc', lantern: '#ffb547', echo: '#8fd8ff',
+};
+let WHset = 0;
+const AR = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const $ = id => document.getElementById(id);
+
+// ---------------- state ----------------
+const S = {
+  n: 1, runSeed: 0, R: null, echoes: [], acts: [], states: [], help: START_HELP, solved: 0,
+  busy: false, won: false, rewinding: false, walk: [], fails: 0, pinMode: false, demo: null, demoSeen: {},
+  started: false,
+};
+const cur = () => S.states[S.states.length - 1];
+
+function save() { try { localStorage.setItem('sada2d', JSON.stringify({ n: S.n, runSeed: S.runSeed, help: S.help, solved: S.solved, demoSeen: S.demoSeen })); } catch (e) {} }
+function load() { try { const d = JSON.parse(localStorage.getItem('sada2d') || 'null'); if (d) Object.assign(S, d); } catch (e) {} if (!S.runSeed) S.runSeed = (Math.random() * 1e9) >>> 0; }
+
+// ---------------- canvas & layout ----------------
+const cv = $('cv'), ctx = cv.getContext('2d');
+let DPR = 1, VW = 0, VH = 0, CS = 40, OX = 0, OY = 0, WH = .34; // cell size px, origin, wall height (in cells)
+const light = document.createElement('canvas'), lctx = light.getContext('2d');
+let staticLayer = null;   // floor + wall faces pre-rendered per room
+
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  const r = cv.getBoundingClientRect();
+  VW = r.width; VH = r.height;
+  cv.width = Math.round(VW * DPR); cv.height = Math.round(VH * DPR);
+  light.width = Math.round(VW * DPR / 2); light.height = Math.round(VH * DPR / 2);
+  layout();
+}
+function layout() {
+  if (!S.R) return;
+  const R = S.R, top = 62, bottom = 58;             // room for the counter / the tick lanterns
+  const availW = VW - 44, availH = VH - top - bottom;
+  CS = Math.floor(Math.min(availW / R.W, availH / (R.H + WH + .3), 92));
+  OX = Math.round((VW - CS * R.W) / 2);
+  OY = Math.round(top + (availH - CS * (R.H + WH)) / 2 + CS * WH);
+  buildStatic();
+}
+// cell centre -> screen
+const sx = x => OX + (x + .5) * CS;
+const sy = y => OY + (S.R.H - 1 - y + .5) * CS;
+
+// ---------------- paper textures ----------------
+function grain(c, w, h, alpha) {   // fibrous paper noise, drawn once
+  const g = c.createImageData(w, h), d = g.data;
+  let s = 1234567;
+  for (let i = 0; i < d.length; i += 4) {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    const v = (s >> 16) & 255;
+    d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = (v > 200 || v < 40) ? alpha : alpha * .35;
+  }
+  return g;
+}
+// a deckled (hand-torn) rectangle: tiny jitter along the edges, stable per seed
+function deckle(c, x, y, w, h, seed, amp) {
+  let s = seed * 9301 + 49297;
+  const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+  const steps = Math.max(4, Math.round((w + h) / 9));
+  c.beginPath();
+  const edge = (x0, y0, x1, y1, nx, ny) => {
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps, j = (rnd() - .5) * amp;
+      c.lineTo(lerp(x0, x1, t) + nx * j, lerp(y0, y1, t) + ny * j);
+    }
+  };
+  c.moveTo(x, y);
+  edge(x, y, x + w, y, 0, 1); edge(x + w, y, x + w, y + h, 1, 0);
+  edge(x + w, y + h, x, y + h, 0, 1); edge(x, y + h, x, y, 1, 0);
+  c.closePath();
+}
+
+function buildStatic() {
+  const R = S.R;
+  staticLayer = document.createElement('canvas');
+  staticLayer.width = cv.width; staticLayer.height = cv.height;
+  const c = staticLayer.getContext('2d');
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // night around the board: a cut-paper crescent and a few paper stars in the empty margins
+  {
+    let sd = 99; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    const inBoard = (x, y) => x > OX - CS * .5 && x < OX + CS * (R.W + .5) && y > OY - CS * (WH + .6) && y < OY + CS * (R.H + .6);
+    for (let k = 0; k < 46; k++) {
+      const x = rnd() * VW, y = rnd() * VH * .95, r = 1.2 + rnd() * 2.6;
+      if (inBoard(x, y)) continue;
+      c.fillStyle = `rgba(239,226,200,${.18 + rnd() * .35})`;
+      c.beginPath(); for (let q = 0; q < 8; q++) { const a = q * Math.PI / 4, rr = q % 2 ? r * .38 : r; q ? c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr) : c.moveTo(x + rr, y); } c.fill();
+    }
+    const mx = VW * .82, my = Math.max(40, OY - CS * WH - 70), mr = Math.min(34, Math.max(18, (OY - CS * WH - 20) * .35));
+    if (my - mr > 40) {
+      c.save(); c.shadowColor = 'rgba(255,214,150,.35)'; c.shadowBlur = 24;
+      c.fillStyle = '#efe2c8'; c.beginPath(); c.arc(mx, my, mr, 0, Math.PI * 2); c.fill(); c.restore();
+      c.globalCompositeOperation = 'destination-out'; c.beginPath(); c.arc(mx - mr * .45, my - mr * .2, mr * .92, 0, Math.PI * 2); c.fill();
+      c.globalCompositeOperation = 'source-over';
+    }
+  }
+  // board base: a sheet of paper under the room with a soft drop shadow
+  c.save();
+  c.shadowColor = 'rgba(0,0,0,.55)'; c.shadowBlur = CS * .6; c.shadowOffsetY = CS * .25;
+  c.fillStyle = PAL.floorEdge;
+  deckle(c, OX - CS * .18, OY - CS * .12, CS * R.W + CS * .36, CS * R.H + CS * .42, 7, CS * .05); c.fill();
+  c.restore();
+  // floor tiles: cut paper squares, two tones in a checker, a lit top edge
+  for (let y = 0; y < R.H; y++) for (let x = 0; x < R.W; x++) {
+    if (R.wall[y * R.W + x]) continue;
+    const X = OX + x * CS, Y = OY + (R.H - 1 - y) * CS, g = CS * .06;
+    c.fillStyle = (x + y) % 2 ? PAL.floorA : PAL.floorB;
+    deckle(c, X + g, Y + g, CS - 2 * g, CS - 2 * g, x * 31 + y * 17, CS * .025); c.fill();
+    c.strokeStyle = PAL.floorHi; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(X + g * 1.6, Y + g * 1.3); c.lineTo(X + CS - g * 1.6, Y + g * 1.3); c.stroke();
+  }
+  // grain over everything
+  const gc = document.createElement('canvas'); gc.width = 128; gc.height = 128;
+  gc.getContext('2d').putImageData(grain(gc.getContext('2d'), 128, 128, 22), 0, 0);
+  c.save(); c.globalCompositeOperation = 'overlay'; c.fillStyle = c.createPattern(gc, 'repeat');
+  c.fillRect(OX - CS, OY - CS, CS * (R.W + 2), CS * (R.H + 2)); c.restore();
+}
+
+// walls are drawn in depth order with the characters (3/4 view: a front face and a paper top)
+let LIGHTS = [];
+// how lit a spot is (0..1) by the lanterns, ignoring occlusion: used for walls, doors and figures
+function litAt(x, y) { let b = .12; for (const L of LIGHTS) { const d = Math.hypot(L.x - x, L.y - y); b = Math.max(b, (1 - d / (L.r * 1.25)) * L.a); } return clamp(b, 0, 1); }
+function fillD(col, dk) { ctx.fillStyle = col; ctx.fill(); if (dk > .01) { ctx.fillStyle = `rgba(13,11,34,${dk})`; ctx.fill(); } }
+function drawWall(x, y) {
+  const X = OX + x * CS, Y = OY + (S.R.H - 1 - y) * CS, h = CS * WH, seed = x * 13 + y * 7;
+  const dk = (1 - litAt(x + .5, y + .5)) * .48;
+  const below = y > 0 && S.R.wall[(y - 1) * S.R.W + x];
+  // front face (stacked paper sheets), hidden when the wall continues toward the viewer
+  if (!below) {
+    ctx.beginPath(); ctx.rect(X, Y + CS - h, CS, h); fillD(PAL.wallDeep, dk);
+    for (let k = 0; k < 3; k++) {
+      deckle(ctx, X + 1, Y + CS - h + k * h / 3, CS - 2, h / 3 - 1, seed + k, CS * .02); fillD(k % 2 ? PAL.wallFace : PAL.wallFace2, dk);
+    }
+  }
+  // top: two stacked cream sheets, slightly offset (the cut-paper edge)
+  deckle(ctx, X + 1, Y - h + 3, CS - 2, CS - 1, seed + 5, CS * .03); fillD(PAL.wallTop2, dk);
+  deckle(ctx, X + 2, Y - h, CS - 4, CS - 4, seed + 9, CS * .03); fillD(PAL.wallTop, dk * .85);
+  // a tiny cut pattern on the top sheet: the room's own motif (rows of small triangles)
+  if ((x * 7 + y * 3) % 4 === 0) {
+    ctx.fillStyle = 'rgba(108,95,196,.35)';
+    for (let k = 0; k < 4; k++) {
+      const px = X + CS * (.24 + k * .17), py = Y - h + CS * .5;
+      ctx.beginPath(); ctx.moveTo(px, py - CS * .06); ctx.lineTo(px + CS * .06, py + CS * .05); ctx.lineTo(px - CS * .06, py + CS * .05); ctx.fill();
+    }
+  }
+}
+
+// ---------------- light: the lantern casts real shadows off the walls and closed doors ----------------
+function segments(openDoors) {
+  const R = S.R, segs = [], solid = (x, y) => x < 0 || y < 0 || x >= R.W || y >= R.H ? false : (R.wall[y * R.W + x] === 1 || closedDoorAt(x, y, openDoors));
+  for (let y = 0; y < R.H; y++) for (let x = 0; x < R.W; x++) {
+    if (!solid(x, y)) continue;
+    if (!solid(x, y - 1)) segs.push([x, y, x + 1, y]);
+    if (!solid(x, y + 1)) segs.push([x, y + 1, x + 1, y + 1]);
+    if (!solid(x - 1, y)) segs.push([x, y, x, y + 1]);
+    if (!solid(x + 1, y)) segs.push([x + 1, y, x + 1, y + 1]);
+  }
+  segs.push([0, 0, R.W, 0], [R.W, 0, R.W, R.H], [R.W, R.H, 0, R.H], [0, R.H, 0, 0]);   // light stays on the board
+  return segs;
+}
+function closedDoorAt(x, y, openDoors) { const i = E.doorAt(S.R, x, y); return i >= 0 && !openDoors[i]; }
+function visibility(lx, ly, segs, rad) {
+  const near = segs.filter(s => {
+    const minx = Math.min(s[0], s[2]) - rad, maxx = Math.max(s[0], s[2]) + rad, miny = Math.min(s[1], s[3]) - rad, maxy = Math.max(s[1], s[3]) + rad;
+    return lx > minx && lx < maxx && ly > miny && ly < maxy;
+  });
+  near.push([lx - rad, ly - rad, lx + rad, ly - rad], [lx + rad, ly - rad, lx + rad, ly + rad], [lx + rad, ly + rad, lx - rad, ly + rad], [lx - rad, ly + rad, lx - rad, ly - rad]);
+  const angles = [];
+  for (const s of near) for (const [px, py] of [[s[0], s[1]], [s[2], s[3]]]) {
+    const a = Math.atan2(py - ly, px - lx); angles.push(a - 1e-4, a, a + 1e-4);
+  }
+  const pts = [];
+  for (const a of angles) {
+    const dx = Math.cos(a), dy = Math.sin(a); let best = Infinity;
+    for (const s of near) {
+      const ex = s[2] - s[0], ey = s[3] - s[1], den = dx * ey - dy * ex;
+      if (Math.abs(den) < 1e-9) continue;
+      const t = ((s[0] - lx) * ey - (s[1] - ly) * ex) / den, u = ((s[0] - lx) * dy - (s[1] - ly) * dx) / den;
+      if (t > 0 && u >= 0 && u <= 1 && t < best) best = t;
+    }
+    if (best < Infinity) pts.push([a, lx + dx * best, ly + dy * best]);
+  }
+  pts.sort((p, q) => p[0] - q[0]);
+  return pts;
+}
+// board coordinates (cells, y up, continuous) -> screen
+const bx = x => OX + x * CS, by = y => OY + (S.R.H - y) * CS;
+
+function drawLights(lights, openDoors) {
+  const k = .5 * DPR, segs = segments(openDoors);
+  lctx.setTransform(1, 0, 0, 1, 0, 0);
+  lctx.globalCompositeOperation = 'source-over';
+  lctx.clearRect(0, 0, light.width, light.height);
+  lctx.fillStyle = PAL.night + '.74)'; lctx.fillRect(0, 0, light.width, light.height);
+  lctx.globalCompositeOperation = 'destination-out';
+  for (const L of lights) {
+    const poly = visibility(L.x, L.y, segs, L.r);
+    lctx.save();
+    lctx.beginPath();
+    poly.forEach(([, px, py], i) => { const X = bx(px) * k, Y = by(py) * k; i ? lctx.lineTo(X, Y) : lctx.moveTo(X, Y); });
+    lctx.closePath(); lctx.clip();
+    const gx = bx(L.x) * k, gy = by(L.y) * k, gr = L.r * CS * k;
+    const g = lctx.createRadialGradient(gx, gy, 0, gx, gy, gr);
+    g.addColorStop(0, `rgba(0,0,0,${L.a})`); g.addColorStop(.55, `rgba(0,0,0,${L.a * .55})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+    lctx.fillStyle = g; lctx.fillRect(gx - gr, gy - gr, gr * 2, gr * 2);
+    lctx.restore();
+    L.poly = poly;
+  }
+  // soft ambient so walls in shadow still read as paper
+  lctx.fillStyle = 'rgba(0,0,0,.18)'; lctx.fillRect(0, 0, light.width, light.height);
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.imageSmoothingEnabled = true; ctx.drawImage(light, 0, 0, cv.width, cv.height); ctx.restore();
+  // coloured warmth inside each light
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const L of lights) {
+    if (!L.poly) continue;
+    ctx.save(); ctx.beginPath();
+    L.poly.forEach(([, px, py], i) => { i ? ctx.lineTo(bx(px), by(py)) : ctx.moveTo(bx(px), by(py)); });
+    ctx.closePath(); ctx.clip();
+    const gx = bx(L.x), gy = by(L.y), gr = L.r * CS * .8;
+    const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, gr);
+    g.addColorStop(0, L.tint); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(gx - gr, gy - gr, gr * 2, gr * 2);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+// ---------------- characters ----------------
+// The hero: a small paper figure in a hooded cloak with a lantern on a crook and a scarf that trails.
+// Echoes are the same figure in blue tracing paper, eyes closed: memories walking in their sleep.
+let ents = [];
+function makeEnt(i, p, ghost) {
+  return { i, ghost, x: p.x, y: p.y, fx: p.x, fy: p.y, tx: p.x, ty: p.y, t: 1, dur: TICK, face: 'D', walkPh: 0, moving: false,
+    bump: null, expr: 'calm', exprT: 0, blink: 2 + Math.random() * 3, blinkT: 0, sway: 0, swayV: 0, jump: 0, pop: ghost ? 0 : 1,
+    scarf: Array.from({ length: 6 }, () => ({ x: p.x, y: p.y, px: p.x, py: p.y })) };
+}
+function spawnEnts() {
+  const pos = cur();
+  ents = pos.map((p, i) => makeEnt(i, p, i < pos.length - 1));
+  ents.forEach(e => (e.pop = 1));
+  spread(pos, true);
+}
+// several on one cell (every loop starts that way): echoes stand around the hero, not inside him
+function spread(pos, snap) {
+  const groups = {};
+  pos.forEach((p, i) => (groups[p.x + ',' + p.y] = groups[p.x + ',' + p.y] || []).push(i));
+  const hero = pos.length - 1;
+  pos.forEach((p, i) => { ents[i].ox = 0; ents[i].oy = 0; });
+  for (const g of Object.values(groups)) {
+    if (g.length < 2) continue;
+    let ring = g.filter(i => i !== hero); if (!g.includes(hero)) ring = ring.slice(1);
+    ring.forEach((i, j) => { const a = Math.PI * 2 * j / ring.length + Math.PI * .75; ents[i].ox = Math.cos(a) * .26; ents[i].oy = Math.sin(a) * .2; });
+  }
+  if (snap) ents.forEach((e, i) => { e.x = e.fx = e.tx = pos[i].x + e.ox; e.y = e.fy = e.ty = pos[i].y + e.oy; e.t = 1; });
+}
+function setExpr(e, x, t) { e.expr = x; e.exprT = t; }
+
+function drawEnt(e, T) {
+  const X = bx(e.x + .5), Y = by(e.y + .5) + CS * .18, s = CS * .0105 * (0.6 + 0.4 * e.pop);
+  const bob = e.moving ? Math.abs(Math.sin(e.walkPh)) * 2.2 : Math.sin(T * 2.2 + e.i) * .6;
+  const lift = e.jump * 14;
+  ctx.save();
+  ctx.translate(X + (e.bumpOff || 0) * CS, Y - lift);
+  ctx.scale(s, s);
+  const flip = e.face === 'L' ? -1 : 1;
+  const back = e.face === 'U';
+  const ghost = e.ghost, col = ghost ? PAL.echo : null;
+  ctx.globalAlpha = ghost ? .62 : 1;
+  // floor shadow (stays on the floor when jumping)
+  ctx.save(); ctx.translate(0, lift / s); ctx.fillStyle = 'rgba(5,4,18,.45)';
+  ctx.beginPath(); ctx.ellipse(0, 4, 22 - e.jump * 6, 7, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  ctx.translate(0, -bob);
+  // legs
+  const lp = e.moving ? Math.sin(e.walkPh) * 6 : 0;
+  ctx.fillStyle = ghost ? 'rgba(143,216,255,.8)' : '#1b1840';
+  ctx.beginPath(); ctx.roundRect(-10 + lp * .5, -8, 8, 12 + Math.max(0, lp) * .3, 4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(2 - lp * .5, -8, 8, 12 + Math.max(0, -lp) * .3, 4); ctx.fill();
+  // scarf (drawn behind the cloak when facing us)
+  const scarfPts = e.scarf.map(p => [(p.x - e.x) * CS / s, -(p.y - e.y) * CS / s]);
+  const drawScarf = () => {
+    ctx.strokeStyle = ghost ? 'rgba(190,235,255,.85)' : PAL.scarf; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(0, -42);
+    scarfPts.forEach(([px, py], k) => ctx.lineTo(px * .9, -42 + py * .9 + k * 2.5));
+    ctx.stroke();
+  };
+  if (!back) drawScarf();
+  // cloak: a bell of folded paper
+  ctx.save(); ctx.scale(flip, 1);
+  const sw = e.sway * 4;
+  ctx.fillStyle = ghost ? 'rgba(143,216,255,.55)' : PAL.cloak;
+  ctx.beginPath();
+  ctx.moveTo(-8, -50); ctx.quadraticCurveTo(-26 + sw, -20, -24 + sw, -4); ctx.lineTo(24 + sw, -4); ctx.quadraticCurveTo(26 + sw, -20, 8, -50); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = ghost ? 'rgba(220,245,255,.5)' : PAL.cloakHi;   // one fold, lit side
+  ctx.beginPath(); ctx.moveTo(4, -48); ctx.quadraticCurveTo(14 + sw, -22, 16 + sw, -4); ctx.lineTo(24 + sw, -4); ctx.quadraticCurveTo(24 + sw, -22, 8, -50); ctx.fill();
+  // hood + face
+  ctx.fillStyle = ghost ? 'rgba(143,216,255,.7)' : PAL.cloak;
+  ctx.beginPath(); ctx.ellipse(0, -60, 21, 20, 0, 0, Math.PI * 2); ctx.fill();
+  // hood tip, flopping with motion
+  ctx.beginPath(); ctx.moveTo(-6, -77); ctx.quadraticCurveTo(10 - sw * 2, -96, 22 - sw * 3, -88); ctx.quadraticCurveTo(12, -80, 8, -74); ctx.fill();
+  if (!back) {
+    ctx.fillStyle = ghost ? 'rgba(235,250,255,.85)' : PAL.face;
+    const fx = e.face === 'R' || e.face === 'L' ? 4 : 0;
+    ctx.beginPath(); ctx.ellipse(fx, -58, 14, 13, 0, 0, Math.PI * 2); ctx.fill();
+    drawFace(e, fx, ghost);
+  } else {
+    ctx.strokeStyle = 'rgba(255,255,255,.12)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, -78); ctx.quadraticCurveTo(-2, -60, 0, -44); ctx.stroke();
+  }
+  ctx.restore();
+  if (back) drawScarf();
+  // lantern on a crook, swinging like a pendulum
+  const hand = [flip * 18, -30], top = [flip * 26, -70], swing = e.swing || 0;
+  ctx.strokeStyle = ghost ? 'rgba(190,235,255,.8)' : '#c9a36a'; ctx.lineWidth = 3.2; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(hand[0], hand[1] + 14); ctx.lineTo(top[0], top[1]); ctx.quadraticCurveTo(top[0] + flip * 10, top[1] - 6, top[0] + flip * 12, top[1] + 4); ctx.stroke();
+  const lx = top[0] + flip * 12 + Math.sin(swing) * 10, ly = top[1] + 14 + Math.cos(swing) * 2;
+  ctx.beginPath(); ctx.moveTo(top[0] + flip * 12, top[1] + 4); ctx.lineTo(lx, ly - 6); ctx.stroke();
+  const glow = ghost ? PAL.echo : PAL.lantern, flick = .85 + Math.sin(T * 17 + e.i) * .06 + Math.sin(T * 7.3) * .05;
+  const gg = ctx.createRadialGradient(lx, ly + 4, 0, lx, ly + 4, 34);
+  gg.addColorStop(0, ghost ? 'rgba(143,216,255,.55)' : `rgba(255,190,90,${.65 * flick})`); gg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(lx, ly + 4, 34, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  ctx.fillStyle = '#2b2050'; ctx.beginPath(); ctx.roundRect(lx - 7, ly - 6, 14, 3, 1.5); ctx.fill();
+  ctx.fillStyle = glow; ctx.beginPath();   // the lamp body: a little paper lantern
+  ctx.moveTo(lx - 7, ly - 3); ctx.quadraticCurveTo(lx - 10, ly + 5, lx - 6, ly + 13); ctx.lineTo(lx + 6, ly + 13); ctx.quadraticCurveTo(lx + 10, ly + 5, lx + 7, ly - 3); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.beginPath(); ctx.ellipse(lx, ly + 5, 2.4, 4 * flick, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+function drawFace(e, fx, ghost) {
+  const ink = ghost ? 'rgba(40,90,140,.9)' : PAL.ink;
+  const look = e.face === 'R' || e.face === 'L' ? 3 : 0;
+  const ex = [fx - 5.5 + look, fx + 5.5 + look], ey = -59;
+  ctx.strokeStyle = ink; ctx.fillStyle = ink; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  const blink = e.blinkT > 0;
+  const x = e.expr;
+  if (ghost || x === 'sleep') {          // echoes walk with closed eyes
+    for (const X of ex) { ctx.beginPath(); ctx.arc(X, ey, 3, .15 * Math.PI, .85 * Math.PI); ctx.stroke(); }
+    return;
+  }
+  if (x === 'happy' || x === 'cheer') {
+    for (const X of ex) { ctx.beginPath(); ctx.arc(X, ey + 1.5, 3.2, 1.15 * Math.PI, 1.85 * Math.PI); ctx.stroke(); }
+  } else if (blink) {
+    for (const X of ex) { ctx.beginPath(); ctx.moveTo(X - 3, ey); ctx.lineTo(X + 3, ey); ctx.stroke(); }
+  } else {
+    const big = x === 'oops' ? 1.35 : 1;
+    for (const X of ex) { ctx.beginPath(); ctx.ellipse(X, ey, 2.6 * big, 3.4 * big, 0, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = '#fff';
+    for (const X of ex) { ctx.beginPath(); ctx.arc(X + .9, ey - 1.2, .9, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = ink;
+  }
+  // brows: worried when time runs short
+  if (x === 'worry') {
+    ctx.beginPath(); ctx.moveTo(ex[0] - 3, ey - 7); ctx.lineTo(ex[0] + 2.5, ey - 5.5); ctx.moveTo(ex[1] + 3, ey - 7); ctx.lineTo(ex[1] - 2.5, ey - 5.5); ctx.stroke();
+  }
+  // mouth
+  ctx.beginPath();
+  if (x === 'oops') ctx.ellipse(fx + look, -50, 2.4, 3, 0, 0, Math.PI * 2), ctx.fill();
+  else if (x === 'cheer') { ctx.ellipse(fx + look, -51, 4, 3.4, 0, 0, Math.PI); ctx.fill(); }
+  else if (x === 'happy') { ctx.arc(fx + look, -52.5, 3.6, .15 * Math.PI, .85 * Math.PI); ctx.stroke(); }
+  else if (x === 'worry') { ctx.arc(fx + look, -48.5, 3, 1.2 * Math.PI, 1.8 * Math.PI); ctx.stroke(); }
+  else { ctx.arc(fx + look, -52, 2.4, .2 * Math.PI, .8 * Math.PI); ctx.stroke(); }
+  // cheeks
+  ctx.fillStyle = 'rgba(255,120,110,.35)';
+  ctx.beginPath(); ctx.arc(ex[0] - 2, ey + 5, 2.4, 0, Math.PI * 2); ctx.arc(ex[1] + 2, ey + 5, 2.4, 0, Math.PI * 2); ctx.fill();
+}
+
+function updEnt(e, dt, T) {
+  if (e.t < 1) {
+    e.t = Math.min(1, e.t + dt * 1000 / e.dur);
+    const k = ease(e.t);
+    e.x = lerp(e.fx, e.tx, k); e.y = lerp(e.fy, e.ty, k);
+    e.moving = Math.hypot(e.tx - e.fx, e.ty - e.fy) > .3;
+    if (e.moving) e.walkPh += dt * 18;
+    e.bumpOff = e.bump ? Math.sin(e.t * Math.PI) * .12 * e.bump : 0;
+    if (e.t >= 1) { e.moving = false; e.bumpOff = 0; e.bump = null; }
+  } else e.still = (e.still || 0) + dt;
+  // lantern pendulum and cloak sway respond to motion
+  const vx = e.moving ? (e.tx - e.fx) : 0;
+  e.swayV += (-vx * .9 - e.sway) * dt * 14; e.swayV *= .86; e.sway += e.swayV * dt * 10;
+  e.swing = (e.swing || 0) * .92 + (-vx * .5 - (e.swing || 0)) * dt * 6 + Math.sin(T * 1.6 + e.i) * .004;
+  // scarf: a short chain pulled toward the neck, trailing behind the motion
+  const sc = e.scarf; sc[0].x = e.x; sc[0].y = e.y + .02;
+  for (let k = 1; k < sc.length; k++) {
+    const p = sc[k], q = sc[k - 1];
+    const nx = p.x + (p.x - p.px) * .82 + Math.sin(T * 3 + k + e.i) * .0015, ny = p.y + (p.y - p.py) * .82 - .0012;
+    p.px = p.x; p.py = p.y; p.x = nx; p.y = ny;
+    const dx = p.x - q.x, dy = p.y - q.y, d = Math.hypot(dx, dy) || 1e-6, L = .07;
+    if (d > L) { p.x = q.x + dx / d * L; p.y = q.y + dy / d * L; }
+  }
+  e.blink -= dt; if (e.blink < 0) { e.blinkT = .12; e.blink = 2.5 + Math.random() * 3.5; }
+  if (e.blinkT > 0) e.blinkT -= dt;
+  if (e.exprT > 0) { e.exprT -= dt; if (e.exprT <= 0) e.expr = 'calm'; }
+  if (e.jump > 0 || e.jumpV) { e.jumpV = (e.jumpV || 0) - dt * 9; e.jump = Math.max(0, e.jump + e.jumpV * dt * 6); if (e.jump === 0) e.jumpV = 0; }
+  // idle life: the hero glances at you after standing still for a while
+  if (!e.ghost && e.t >= 1 && e.still > 2.6 && Math.floor(e.still) % 6 < 2) e.face = 'D';
+}
+
+// ---------------- doors, plates, exit ----------------
+let doorFx = [], plateFx = [];
+function glyphPath(c, g, r) {
+  const G = GLYPH[g % 4];
+  c.beginPath();
+  if (!G.n) { c.arc(0, 0, r, 0, Math.PI * 2); return; }
+  for (let k = 0; k < G.n; k++) {
+    const a = (G.rot || 0) - Math.PI / 2 + k * Math.PI * 2 / G.n + (G.n === 4 && !G.rot ? Math.PI / 4 : 0);
+    const X = Math.cos(a) * r, Y = Math.sin(a) * r; k ? c.lineTo(X, Y) : c.moveTo(X, Y);
+  }
+  c.closePath();
+}
+function drawDoor(i, T) {
+  const d = S.R.doors[i], f = doorFx[i], G = GLYPH[i % 4];
+  const X = OX + d.x * CS, Y = OY + (S.R.H - 1 - d.y) * CS, h = CS * WH;
+  // posts: the wall continues on both sides as two narrow paper pillars
+  const dk = (1 - litAt(d.x + .5, d.y + .5)) * .48;
+  for (const px of [X + 1, X + CS - CS * .16 - 1]) { deckle(ctx, px, Y - h, CS * .16, CS + h - 2, i * 3 + px, CS * .02); fillD(PAL.wallTop2, dk); }
+  // the panel: a sheet with the door's glyph cut through it, lit from behind in its colour
+  const open = f.open, ph = (CS + h - 6) * (1 - open);
+  if (ph > 1) {
+    ctx.save();
+    ctx.beginPath(); ctx.rect(X + CS * .16, Y + CS - ph - 2, CS * .68, ph); ctx.clip();
+    ctx.fillStyle = '#2b2466'; ctx.fillRect(X + CS * .16, Y + CS - ph - 2, CS * .68, ph);
+    // folds (the sheet concertinas down when it opens)
+    ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 1;
+    for (let k = 1; k < 5; k++) { const yy = Y + CS - 2 - ph * k / 5; ctx.beginPath(); ctx.moveTo(X + CS * .16, yy); ctx.lineTo(X + CS * .84, yy); ctx.stroke(); }
+    ctx.translate(X + CS / 2, Y + CS - ph * .55 - 2);
+    const pulse = .65 + .25 * Math.sin(T * 2.4 + i) + f.lit * .4 + f.flash;
+    ctx.shadowColor = G.c; ctx.shadowBlur = CS * .25 * pulse;
+    ctx.fillStyle = G.c; ctx.globalAlpha = clamp(.55 + pulse * .35, 0, 1);
+    glyphPath(ctx, i, CS * .17);
+    if (d.kind === 'inverse') { ctx.lineWidth = CS * .045; ctx.strokeStyle = G.c; ctx.stroke(); } else ctx.fill();
+    ctx.restore();
+  }
+  // timed doors: three pips that count the open ticks down
+  if (d.kind === 'timed') {
+    const tm = (cur().timers || [])[i] || 0, held = plateHeld(i);
+    for (let k = 0; k < 3; k++) {
+      const on = held || k < tm;
+      ctx.fillStyle = on ? G.c : 'rgba(239,226,200,.25)';
+      ctx.beginPath(); ctx.arc(X + CS * (.32 + k * .18), Y - h - CS * .1, CS * .045, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  // lintel
+  deckle(ctx, X + 1, Y - h - 1, CS - 2, CS * .2, i * 11 + 3, CS * .02); fillD(PAL.wallTop, dk * .85);
+  if (f.flash > 0) f.flash = Math.max(0, f.flash - .04);
+}
+function plateHeld(i) {
+  const pos = cur();
+  return S.R.plates.some(p => p.door === i && (pos.some(e => e.x === p.x && e.y === p.y) || (S.R.pinned || []).some(e => e.x === p.x && e.y === p.y)));
+}
+function drawPlate(j, T) {
+  const p = S.R.plates[j], f = plateFx[j], G = GLYPH[p.door % 4], inv = S.R.doors[p.door].kind === 'inverse';
+  const X = sx(p.x), Y = sy(p.y), r = CS * .33;
+  ctx.save(); ctx.translate(X, Y + f.on * 2);
+  // medallion: stacked discs of paper
+  ctx.fillStyle = '#1b1745'; ctx.beginPath(); ctx.ellipse(0, 3, r * 1.05, r * .95, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = f.on > .5 ? '#2a2360' : '#3a3378'; ctx.beginPath(); ctx.ellipse(0, 0, r, r * .9, 0, 0, Math.PI * 2); ctx.fill();
+  const glow = .45 + f.on * .55 + (f.hover || 0) * .3 + .1 * Math.sin(T * 3 + j);
+  ctx.shadowColor = G.c; ctx.shadowBlur = CS * .2 * glow;
+  ctx.strokeStyle = G.c; ctx.globalAlpha = clamp(glow, 0, 1); ctx.lineWidth = CS * .035;
+  ctx.beginPath(); ctx.ellipse(0, 0, r * .78, r * .7, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.scale(1, .9);
+  glyphPath(ctx, p.door, r * .38);
+  if (inv) { ctx.lineWidth = CS * .03; ctx.stroke(); } else { ctx.fillStyle = G.c; ctx.fill(); }
+  ctx.restore();
+  // a pinned helper: a small paper statue holding the plate
+  if ((S.R.pinned || []).some(e => e.x === p.x && e.y === p.y)) drawStatue(X, Y);
+}
+function drawStatue(X, Y) {
+  ctx.save(); ctx.translate(X, Y + CS * .1); const s = CS * .0105; ctx.scale(s, s);
+  ctx.fillStyle = '#b9ad94';
+  ctx.beginPath(); ctx.moveTo(-18, -2); ctx.quadraticCurveTo(-20, -30, -8, -46); ctx.lineTo(8, -46); ctx.quadraticCurveTo(20, -30, 18, -2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, -56, 15, 14, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#7d735f'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(-5, -57, 2.6, .15 * Math.PI, .85 * Math.PI); ctx.arc(5, -57, 2.6, .15 * Math.PI, .85 * Math.PI); ctx.stroke();
+  ctx.restore();
+}
+function drawExit(T) {
+  const e = S.R.exit, X = sx(e.x), Y = sy(e.y);
+  const near = S.nearExit || 0;
+  ctx.save(); ctx.translate(X, Y);
+  // a round window cut into the floor (qamariya): glowing rings and a rising beam
+  const r = CS * .4;
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 1.6);
+  g.addColorStop(0, `rgba(255,215,140,${.55 + near * .3})`); g.addColorStop(1, 'rgba(255,181,71,0)');
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r * 1.6, 0, Math.PI * 2); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.strokeStyle = PAL.lantern; ctx.lineWidth = CS * .04;
+  ctx.save(); ctx.rotate(T * (.4 + near));
+  ctx.setLineDash([CS * .09, CS * .06]); ctx.beginPath(); ctx.ellipse(0, 0, r, r * .88, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore(); ctx.setLineDash([]);
+  ctx.fillStyle = '#fff3d6'; ctx.beginPath(); ctx.ellipse(0, 0, r * .45, r * .4, 0, 0, Math.PI * 2); ctx.fill();
+  // eight-point star cut into the centre
+  ctx.fillStyle = '#ffcf7a'; ctx.beginPath();
+  for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8 + T * .3, rr = k % 2 ? r * .16 : r * .32; k ? ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr * .9) : ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr * .9); }
+  ctx.fill();
+  // motes rising
+  ctx.globalCompositeOperation = 'lighter';
+  for (let k = 0; k < 7; k++) {
+    const ph = (T * .35 + k / 7) % 1, a = k * 2.4;
+    ctx.fillStyle = `rgba(255,200,110,${(1 - ph) * .8})`;
+    ctx.beginPath(); ctx.arc(Math.cos(a) * r * .5, -ph * CS * 1.1, CS * .025 * (1 - ph * .5), 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ---------------- hint footprints, link arcs, tick lanterns ----------------
+let hint = null;  // {cells:[{x,y,t}], until}
+let hover = -1;   // door index under the finger (shows which plate opens it)
+function drawHint(T) {
+  if (!hint) return;
+  if (performance.now() > hint.until) { hint = null; return; }
+  ctx.save(); ctx.font = `600 ${Math.round(CS * .26)}px ${getComputedStyle(document.body).getPropertyValue('--ui') || 'sans-serif'}`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  hint.cells.forEach((c, k) => {
+    const X = sx(c.x), Y = sy(c.y), a = .55 + .35 * Math.sin(T * 4 - k * .5);
+    ctx.fillStyle = `rgba(255,211,138,${a * .35})`; ctx.beginPath(); ctx.arc(X, Y, CS * .22, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(255,226,170,${a})`; ctx.fillText(AR(c.t), X, Y + 1);
+  });
+  ctx.restore();
+}
+function drawLink(T) {
+  if (hover < 0) return;
+  const d = S.R.doors[hover], G = GLYPH[hover % 4];
+  ctx.save(); ctx.fillStyle = G.c; ctx.shadowColor = G.c; ctx.shadowBlur = 8;
+  for (const p of S.R.plates) {
+    if (p.door !== hover) continue;
+    const ax = sx(p.x), ay = sy(p.y), cx = sx(d.x), cy = sy(d.y) - CS * .3, n = 14;
+    for (let k = 0; k < n; k++) {
+      const t = (k + (T * 1.4) % 1) / n, X = lerp(ax, cx, t), Y = lerp(ay, cy, t) - Math.sin(t * Math.PI) * CS * .9;
+      ctx.beginPath(); ctx.arc(X, Y, CS * .04 * (.6 + .4 * Math.sin(t * Math.PI)), 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+function drawTicks(T) {
+  const R = S.R, n = R.L, done = S.acts.length, w = Math.min(VW - 120, n * 22), y = VH - 26, x0 = (VW - w) / 2;
+  for (let k = 0; k < n; k++) {
+    const X = x0 + w * (k + .5) / n, left = n - done, past = k < done;
+    const warn = !past && left <= 3;
+    ctx.save(); ctx.translate(X, y);
+    if (!past) {
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 10); g.addColorStop(0, warn ? 'rgba(255,110,90,.6)' : 'rgba(255,181,71,.45)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = past ? 'rgba(239,226,200,.18)' : warn ? '#ff8a6e' : '#ffcf7a';
+    ctx.beginPath(); ctx.moveTo(-3.5, -4); ctx.quadraticCurveTo(-5, 1, -3, 5); ctx.lineTo(3, 5); ctx.quadraticCurveTo(5, 1, 3.5, -4); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  // echo slots: small masks, filled as loops are recorded
+  for (let k = 0; k < R.E; k++) {
+    const X = x0 + w + 22 + k * 20, Y = y;
+    ctx.save(); ctx.translate(VW - X, Y);   // RTL: masks sit to the left of the lanterns
+    ctx.fillStyle = k < S.echoes.length ? PAL.echo : 'transparent'; ctx.strokeStyle = PAL.echo; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(0, 0, 7, 8, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = k < S.echoes.length ? '#204a6a' : PAL.echo;
+    ctx.beginPath(); ctx.arc(-2.6, -1, 1.6, .15 * Math.PI, .85 * Math.PI); ctx.arc(2.6, -1, 1.6, .15 * Math.PI, .85 * Math.PI); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ---------------- particles (paper confetti on win, dust on bumps) ----------------
+let parts = [];
+function burst(x, y, cols, n, spd) {
+  for (let k = 0; k < n; k++) {
+    const a = Math.random() * Math.PI * 2, v = (.5 + Math.random()) * spd;
+    parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - spd * .6, r: Math.random() * Math.PI, vr: (Math.random() - .5) * 10, life: 1, c: cols[k % cols.length], s: 3 + Math.random() * 4 });
+  }
+}
+function drawParts(dt) {
+  parts = parts.filter(p => (p.life -= dt * .7) > 0);
+  for (const p of parts) {
+    p.vy += 600 * dt; p.vx *= .99; p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt;
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.globalAlpha = p.life; ctx.fillStyle = p.c;
+    ctx.fillRect(-p.s, -p.s * .6, p.s * 2, p.s * 1.2); ctx.restore();
+  }
+}
+
+// ---------------- sound: calm night, soft paper and chimes ----------------
+let AC = null, master = null;
+function audioStart() {
+  if (AC) return;
+  try {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    master = AC.createGain(); master.gain.value = .5; master.connect(AC.destination);
+    // a quiet drone: two low sines a fifth apart, breathing through a slow filter
+    const f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 500; f.Q.value = .4;
+    const g = AC.createGain(); g.gain.value = .045; f.connect(g); g.connect(master);
+    for (const [hz, det] of [[110, 0], [164.8, 3], [220, -4]]) { const o = AC.createOscillator(); o.type = 'sine'; o.frequency.value = hz; o.detune.value = det; o.connect(f); o.start(); }
+    const lfo = AC.createOscillator(), lg = AC.createGain(); lfo.frequency.value = .07; lg.gain.value = 220; lfo.connect(lg); lg.connect(f.frequency); lfo.start();
+  } catch (e) { AC = null; }
+}
+const SCALE = [0, 2, 4, 7, 9, 12, 14, 16];
+function tone(semi, dur, vol, type = 'sine', delay = 0) {
+  if (!AC) return;
+  const t = AC.currentTime + delay, o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.value = 440 * Math.pow(2, (semi - 9) / 12);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + .05);
+}
+function paper(vol = .05) {   // a soft rustle: filtered noise
+  if (!AC) return;
+  const len = .09, b = AC.createBuffer(1, AC.sampleRate * len, AC.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+  const s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
+  f.type = 'bandpass'; f.frequency.value = 2400; f.Q.value = .8; g.gain.value = vol;
+  s.buffer = b; s.connect(f); f.connect(g); g.connect(master); s.start();
+}
+const SFX = {
+  step: t => { paper(.035); tone(SCALE[t % SCALE.length] + 12, .25, .025); },
+  wait: () => tone(7, .3, .03),
+  bump: () => { tone(-12, .18, .06, 'triangle'); paper(.08); },
+  door: open => { tone(open ? 16 : 9, .7, .04); tone(open ? 23 : 4, .9, .025, 'sine', .06); },
+  plate: () => tone(19, .5, .035),
+  echo: () => { [12, 16, 19, 24].forEach((s, k) => tone(s, 1.2, .03, 'sine', k * .07)); },
+  rewind: () => { for (let k = 0; k < 5; k++) tone(24 - k * 3, .2, .02, 'sine', k * .04); },
+  win: () => { [0, 4, 7, 12, 16, 19, 24].forEach((s, k) => tone(s + 12, 1.4, .035, 'sine', k * .08)); },
+  hint: () => tone(21, .8, .03),
+};
+const buzz = p => { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} };
+
+// ---------------- room flow (same rules as the 3D versions) ----------------
+function loadRoom(n) {
+  S.n = n; S.R = E.roomFor(n, S.runSeed);
+  if (!S.R) { S.runSeed++; S.R = E.roomFor(n, S.runSeed); }
+  S.echoes = []; S.acts = []; S.walk = []; S.won = false; S.busy = false; S.fails = 0; S.pinMode = false; hint = null; hover = -1;
+  S.R.pinned = [];
+  recompute(); doorFx = S.R.doors.map(() => ({ open: 0, lit: 0, flash: 0 })); plateFx = S.R.plates.map(() => ({ on: 0 }));
+  spawnEnts(); doorsUpdate(true); layout(); ui(); save();
+  S.enterT = performance.now();
+  if (S.R.tutorial && n > 1 && !S.demoSeen[n] && S.started) { S.demoSeen[n] = 1; save(); setTimeout(() => startDemo(true), 900); }
+}
+function recompute() { S.states = E.run(S.R, S.echoes, S.acts); }
+function doAction(a, fromDemo) {
+  if (S.busy || S.won || S.rewinding || (S.demo && !fromDemo)) return false;
+  if (S.acts.length >= S.R.L) return false;
+  const t = S.acts.length, pos = cur();
+  const acts = S.echoes.map(e => e[t] || 'W').concat([a]);
+  const next = E.step(S.R, pos, acts), hero = ents[ents.length - 1], me = next[next.length - 1];
+  if (a !== 'W' && me.blocked) {
+    hero.face = a; hero.bump = 1; hero.t = 0; hero.fx = hero.tx = hero.x; hero.fy = hero.ty = hero.y; hero.dur = 220;
+    setExpr(hero, 'oops', .7); SFX.bump(); buzz(15); S.walk = [];
+    const d = E.DIRS[a], di = E.doorAt(S.R, pos[pos.length - 1].x + d[0], pos[pos.length - 1].y + d[1]); if (di >= 0) doorFx[di].flash = 1;
+    burst(bx(hero.x + .5 + d[0] * .4), by(hero.y + .5 + d[1] * .4), ['#efe2c8', '#8d86b8'], 6, 120);
+    return false;
+  }
+  S.acts.push(a); S.states.push(next);
+  S.busy = true;
+  next.forEach((n, i) => {
+    const e = ents[i], act = acts[i];
+    if (act !== 'W') e.face = act;
+    e.fx = e.x; e.fy = e.y; e.t = 0; e.dur = TICK; e.still = 0;
+    if (n.blocked && act !== 'W') e.bump = 1;
+  });
+  spread(next, false);
+  next.forEach((n, i) => { ents[i].tx = n.x + ents[i].ox; ents[i].ty = n.y + ents[i].oy; });
+  if (a === 'W') SFX.wait(); else SFX.step(t);
+  doorsUpdate(false); ui();
+  const left = S.R.L - S.acts.length;
+  if (left <= 3 && left > 0) setExpr(hero, 'worry', 1.5);
+  setTimeout(afterTick, TICK);
+  return true;
+}
+function afterTick() {
+  S.busy = false;
+  const me = cur()[S.echoes.length];
+  if (me.x === S.R.exit.x && me.y === S.R.exit.y) return win();
+  if (S.acts.length >= S.R.L) {
+    S.walk = [];
+    if (S.echoes.length < S.R.E) setTimeout(endLoopAsEcho, 300);
+    else if (S.demo) { stopDemo(); }
+    else { S.fails++; setTimeout(retryLoop, 300); if (S.fails >= 2 && S.help > 0) $('bHint').classList.add('pulse'); }
+    return;
+  }
+  pump();
+}
+function pump() { if (S.walk.length && !S.busy) { const a = S.walk.shift(); if (!doAction(a, !!S.demo)) S.walk = []; } }
+function doorsUpdate(silent) {
+  const pos = cur(), open = E.doorStates(S.R, pos);
+  open.forEach((o, i) => { const f = doorFx[i]; if (!silent && o !== f.was) { SFX.door(o); if (o) setExpr(ents[ents.length - 1], 'happy', .9); } f.was = o; f.target = o ? 1 : 0; });
+  S.R.plates.forEach((p, j) => {
+    const on = pos.some(e => e.x === p.x && e.y === p.y) || (S.R.pinned || []).some(e => e.x === p.x && e.y === p.y);
+    if (on && !plateFx[j].was && !silent) { SFX.plate(); buzz(10); }
+    plateFx[j].was = on; plateFx[j].target = on ? 1 : 0;
+  });
+}
+function endLoopAsEcho() {
+  if (S.won || S.rewinding) return;
+  S.echoes.push(E.pad(S.acts, S.R.L));
+  rewind(() => { S.acts = []; recompute(); spawnEnts(); const g = ents[S.echoes.length - 1]; g.pop = 0; doorsUpdate(true); ui(); SFX.echo(); });
+}
+function retryLoop() { if (S.won || S.rewinding) return; rewind(() => { S.acts = []; recompute(); spawnEnts(); doorsUpdate(true); ui(); }); }
+function backLoop() {
+  if (S.demo) return stopDemo();
+  if (S.busy || S.won || S.rewinding) return;
+  if (!S.acts.length && !S.echoes.length) return;
+  S.walk = []; setPin(false);
+  rewind(() => { if (!S.acts.length && S.echoes.length) S.echoes.pop(); S.acts = []; recompute(); spawnEnts(); doorsUpdate(true); ui(); });
+}
+function undo() {
+  if (S.demo) return stopDemo();
+  if (S.busy || S.won || S.rewinding || !S.acts.length) return;
+  S.walk = []; S.acts.pop(); S.states.pop(); spread(cur(), true); doorsUpdate(true); ui(); tone(4, .2, .03);
+}
+// rewind: the characters glide back along their paths; the paper "inhales"
+function rewind(done) {
+  S.rewinding = true; SFX.rewind(); buzz([8, 30, 8]);
+  const steps = S.acts.length, total = Math.min(900, 160 + steps * 50), t0 = performance.now(), states = S.states;
+  if (!steps) { S.rewinding = false; done(); return; }
+  (function f() {
+    const k = clamp((performance.now() - t0) / total, 0, 1), p = (1 - ease(k)) * steps, i0 = Math.floor(p), fr = p - i0;
+    const a = states[Math.min(i0 + 1, steps)], b = states[i0];
+    ents.forEach((e, i) => { if (!a[i]) return; e.x = lerp(b[i].x, a[i].x, fr); e.y = lerp(b[i].y, a[i].y, fr); e.t = 1; e.moving = true; e.walkPh -= .4; });
+    S.rewindK = k;
+    if (k < 1) requestAnimationFrame(f); else { S.rewinding = false; S.rewindK = 0; done(); }
+  })();
+}
+function win() {
+  S.won = true;
+  const hero = ents[ents.length - 1];
+  setExpr(hero, 'cheer', 2.5); hero.jumpV = 1.6; hero.jump = .01;
+  SFX.win(); buzz([20, 40, 20]);
+  burst(sx(S.R.exit.x), sy(S.R.exit.y), ['#ffb547', '#efe2c8', '#ff6fae', '#7cf0b5', '#8fd8ff'], 40, 260);
+  if (S.demo) { setTimeout(() => { stopDemo(); toast('▶'); }, 900); return; }
+  S.solved++;
+  if (S.solved % 3 === 0 && S.help < MAX_HELP) S.help++;
+  setTimeout(() => { S.transT = performance.now(); setTimeout(() => loadRoom(S.n + 1), 380); }, 1300);
+}
+function walkTo(c) {
+  const me = cur()[S.echoes.length];
+  if (c.x === me.x && c.y === me.y) { S.walk = ['W']; pump(); return; }
+  const path = E.bfsPath(S.R, me, c, true);
+  if (!path) { SFX.bump(); return; }
+  S.walk = [];
+  for (let k = 1; k < path.length; k++) {
+    const dx = path[k].x - path[k - 1].x, dy = path[k].y - path[k - 1].y;
+    S.walk.push(dx === 1 ? 'R' : dx === -1 ? 'L' : dy === 1 ? 'U' : 'D');
+  }
+  pump();
+}
+function useHelp() { if (S.R.tutorial) return true; if (S.help <= 0) { SFX.bump(); return false; } S.help--; ui(); return true; }
+function showHint() {
+  if (S.demo) return stopDemo();
+  if (S.busy || S.won || S.rewinding || !S.R.solution) return;
+  if (!useHelp()) return;
+  $('bHint').classList.remove('pulse');
+  const sol = S.R.solution, seq = S.echoes.length < sol.echoes.length ? sol.echoes[S.echoes.length] : sol.player;
+  let p = { ...S.R.start }; const cells = []; let t = 0;
+  for (const a of seq) { t++; const d = E.DIRS[a]; if (d[0] || d[1]) { p = { x: p.x + d[0], y: p.y + d[1] }; cells.push({ ...p, t }); } }
+  hint = { cells, until: performance.now() + 9000 }; SFX.hint();
+}
+function setPin(on) { S.pinMode = on; $('bPin').classList.toggle('armed', on); }
+function pinPress() {
+  if (S.demo) return stopDemo();
+  if (S.busy || S.won || S.rewinding) return;
+  if (S.pinMode) return setPin(false);
+  if (!S.R.tutorial && S.help <= 0) { SFX.bump(); return; }
+  setPin(true); toast('◎');
+}
+function pinAt(c) {
+  const plate = S.R.plates.find(p => p.x === c.x && p.y === c.y && S.R.doors[p.door].kind !== 'inverse');
+  setPin(false);
+  if (!plate || S.R.pinned.some(p => p.x === c.x && p.y === c.y)) return;
+  if (!useHelp()) return;
+  S.R.pinned.push({ x: c.x, y: c.y });
+  recompute(); doorsUpdate(false); ui(); tone(12, .6, .04);
+}
+function startDemo(free) {
+  if (S.busy || S.won || S.rewinding || S.demo || !S.R.solution) return;
+  if (!free && !useHelp()) return;
+  const sol = S.R.solution, q = [];
+  sol.echoes.forEach(e => q.push(...E.pad(e, S.R.L)));
+  q.push(...sol.player);
+  S.walk = []; setPin(false); S.R.pinned = [];
+  S.echoes = []; S.acts = []; recompute(); spawnEnts(); doorsUpdate(true); ui();
+  S.demo = { q, iv: setInterval(() => { const d = S.demo; if (!d || S.busy || S.rewinding || S.won || S.acts.length >= S.R.L) return; if (!d.q.length) return stopDemo(); doAction(d.q.shift(), true); }, 40) };
+  $('bWatch').classList.add('armed');
+}
+function stopDemo() {
+  if (!S.demo) return;
+  clearInterval(S.demo.iv); S.demo = null; $('bWatch').classList.remove('armed');
+  S.won = false; S.echoes = []; S.acts = []; S.walk = []; recompute(); spawnEnts(); doorsUpdate(true); ui();
+}
+let toastT = 0;
+function toast(t) { const el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 900); }
+function ui() {
+  $('room').textContent = AR(S.n);
+  const h = $('helps'); h.innerHTML = '';
+  for (let k = 0; k < MAX_HELP; k++) { const i = document.createElement('i'); if (k >= S.help) i.className = 'off'; h.appendChild(i); }
+  const free = S.R && S.R.tutorial;
+  for (const id of ['bHint', 'bPin', 'bWatch']) $(id).classList.toggle('dim', !free && S.help <= 0);
+  $('bBack').classList.toggle('dim', !S.acts.length && !S.echoes.length);
+  $('bUndo').classList.toggle('dim', !S.acts.length);
+}
+
+// ---------------- input: swipe to step, tap a cell to walk there ----------------
+let touch = null;
+function cellAt(px, py) { return { x: Math.floor((px - OX) / CS), y: S.R.H - 1 - Math.floor((py - OY) / CS) }; }
+cv.addEventListener('pointerdown', e => { touch = { x: e.clientX, y: e.clientY, t: performance.now() }; const r = cv.getBoundingClientRect(); const c = cellAt(e.clientX - r.left, e.clientY - r.top); hover = hoverDoor(c); });
+cv.addEventListener('pointerup', e => {
+  if (!touch || !S.started) return;
+  const dx = e.clientX - touch.x, dy = e.clientY - touch.y, r = cv.getBoundingClientRect();
+  touch = null; setTimeout(() => (hover = -1), 900);
+  if (S.demo) return stopDemo();
+  if (Math.hypot(dx, dy) > 24) {
+    const a = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'R' : 'L') : (dy > 0 ? 'D' : 'U');
+    S.walk = []; doAction(a); return;
+  }
+  const c = cellAt(e.clientX - r.left, e.clientY - r.top);
+  if (c.x < 0 || c.y < 0 || c.x >= S.R.W || c.y >= S.R.H) return;
+  if (S.pinMode) return pinAt(c);
+  if (S.busy) { const me = cur()[S.echoes.length]; S.walk = []; setTimeout(() => walkTo(c), TICK); return; }
+  walkTo(c);
+});
+function hoverDoor(c) {
+  if (!S.R) return -1;
+  const d = E.doorAt(S.R, c.x, c.y); if (d >= 0) return d;
+  const p = S.R.plates.find(p => p.x === c.x && p.y === c.y); return p ? p.door : -1;
+}
+window.addEventListener('keydown', e => {
+  const k = { ArrowUp: 'U', ArrowDown: 'D', ArrowLeft: 'L', ArrowRight: 'R', ' ': 'W' }[e.key];
+  if (k && S.started) { e.preventDefault(); S.walk = []; doAction(k); }
+  if (e.key === 'z' || e.key === 'Backspace') undo();
+});
+$('bWait').onclick = () => { S.walk = []; doAction('W'); };
+$('bUndo').onclick = undo;
+$('bBack').onclick = backLoop;
+$('bHint').onclick = showHint;
+$('bPin').onclick = pinPress;
+$('bWatch').onclick = () => (S.demo ? stopDemo() : startDemo(false));
+function begin() {
+  if (S.started) return;
+  S.started = true; audioStart();
+  const t = $('title'); t.style.transition = 'opacity .6s'; t.style.opacity = 0; setTimeout(() => (t.hidden = true), 600);
+  if (S.R.tutorial && S.n > 1 && !S.demoSeen[S.n]) { S.demoSeen[S.n] = 1; save(); setTimeout(() => startDemo(true), 700); }
+}
+$('title').addEventListener('pointerup', begin);
+$('title').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') begin(); });
+
+// ---------------- frame ----------------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now; const T = now / 1000;
+  if (!S.R || !staticLayer) { requestAnimationFrame(frame); return; }
+  ents.forEach(e => { updEnt(e, dt, T); if (e.pop < 1) e.pop = Math.min(1, e.pop + dt * 3); });
+  doorFx.forEach(f => { f.open += ((f.target || 0) - f.open) * Math.min(1, dt * 9); f.lit += (((hover >= 0 && doorFx[hover] === f) ? 1 : 0) - f.lit) * Math.min(1, dt * 6); });
+  plateFx.forEach((f, j) => { f.on += ((f.target || 0) - f.on) * Math.min(1, dt * 12); f.hover = hover >= 0 && S.R.plates[j].door === hover ? 1 : 0; });
+  const heroE = ents[ents.length - 1];
+  S.nearExit = heroE ? clamp(1 - (Math.hypot(heroE.x - S.R.exit.x, heroE.y - S.R.exit.y) - 1) / 3, 0, 1) : 0;
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#151330'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // room entrance: the paper sheet slides up into place
+  const ent = clamp((now - (S.enterT || 0)) / 600, 0, 1), out = S.transT ? clamp((now - S.transT) / 380, 0, 1) : 0;
+  if (ent >= 1 && S.transT && !S.won) S.transT = 0;
+  const slide = (1 - ease(ent)) * 40 + ease(out) * -40;
+  ctx.globalAlpha = Math.min(ease(ent), 1 - out);
+  ctx.translate(0, slide);
+  ctx.drawImage(staticLayer, 0, 0, cv.width / DPR, cv.height / DPR);
+
+  // lights: the hero's lantern, the echoes' pale lanterns, the exit, lit plates
+  const open = E.doorStates(S.R, cur()), lights = [];
+  ents.forEach(e => lights.push({ x: e.x + .5, y: e.y + .55, r: e.ghost ? 2.3 : 3.6 + Math.sin(T * 9) * .04, a: e.ghost ? .7 : 1, tint: e.ghost ? 'rgba(80,150,220,.16)' : 'rgba(255,160,60,.22)' }));
+  lights.push({ x: S.R.exit.x + .5, y: S.R.exit.y + .5, r: 2.2 + S.nearExit * .8, a: .85, tint: 'rgba(255,190,90,.14)' });
+  S.R.plates.forEach((p, j) => { if (plateFx[j].on > .3) lights.push({ x: p.x + .5, y: p.y + .5, r: 1.3, a: .6 * plateFx[j].on, tint: 'rgba(255,255,255,.0)' }); });
+  LIGHTS = lights;
+  // floor shadows: cast by walls and closed doors (on the floor plane, under everything standing)
+  drawLights(lights, open);
+  drawExit(T);
+  S.R.plates.forEach((p, j) => drawPlate(j, T));
+  drawHint(T);
+  // depth-sorted: far rows first; walls, doors and characters interleave (3/4 view)
+  const items = [];
+  for (let y = 0; y < S.R.H; y++) for (let x = 0; x < S.R.W; x++) if (S.R.wall[y * S.R.W + x]) items.push({ d: y + .02, f: () => drawWall(x, y) });
+  S.R.doors.forEach((d, i) => items.push({ d: d.y + .02, f: () => drawDoor(i, T) }));
+  ents.forEach(e => items.push({ d: e.y, f: () => drawEnt(e, T) }));
+  items.sort((a, b) => b.d - a.d).forEach(it => it.f());
+  drawLink(T);
+  drawParts(dt);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (S.rewindK) { ctx.fillStyle = `rgba(143,216,255,${Math.sin(S.rewindK * Math.PI) * .08})`; ctx.fillRect(0, 0, VW, VH); }
+  drawTicks(T);
+  requestAnimationFrame(frame);
+}
+
+// test hook (used by the automated play test; harmless for players)
+window.__sada = { S, doAction, loadRoom, cur, get ents() { return ents; }, startDemo, showHint };
+
+load();
+window.addEventListener('resize', resize);
+loadRoom(S.n);
+resize();
+requestAnimationFrame(frame);
+})();
+
+</script>
