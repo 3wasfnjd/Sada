@@ -6,7 +6,7 @@ extends SceneTree
 ## - triangle budget per room (Quest), and the hero's faces switch as asked
 
 const Env = preload("res://game/lowpoly/env.gd")
-const Hero = preload("res://game/lowpoly/fox.gd")   # the hero since 0.8.0 (hero.gd: the elder, kept)
+const Hero = preload("res://game/lowpoly/fox_up.gd")   # the hero since 0.9.0 (fox.gd: on four legs; hero.gd: the elder)
 const Logic = preload("res://core/sada_logic.gd")
 const BUDGET := 60000   # triangles for a whole room with its island, doors, neon and figures
 

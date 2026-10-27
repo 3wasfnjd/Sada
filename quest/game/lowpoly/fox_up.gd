@@ -14,6 +14,7 @@ const ORANGE := Color(0.91, 0.48, 0.20)
 const ORANGE_DK := Color(0.78, 0.37, 0.15)
 const WHITE := Color(0.97, 0.92, 0.84)     # cream white: chest, cheeks, tail tip
 const CREAM := Color(0.93, 0.84, 0.72)     # inside the ears
+const FACE_CREAM := Color(1.0, 0.98, 0.94)  # the lower face (brighter: it faces down, away from the light)
 const DARK := Color(0.33, 0.22, 0.18)      # legs, ear backs
 const PAW := Color(0.27, 0.18, 0.15)
 const EYE := Color(0.10, 0.07, 0.06)
@@ -57,6 +58,13 @@ var _twitch_t := 0.0
 var _tail_v := Vector2.ZERO
 var _tail_a := Vector2.ZERO
 var _last_pos := Vector3.ZERO
+var _walk_w := 0.0
+var _eye_open := 1.0
+var _look := Vector2.ZERO
+var _look_s := Vector2.ZERO
+var _look_t := 1.0
+var _fidget_t := 0.0
+var _twitch_ear := 1
 
 
 func build(as_ghost: bool, ghost_material: Material = null) -> void:
@@ -175,7 +183,12 @@ func _head_mesh() -> ArrayMesh:
 	var lp := _lp(2)
 	lp.face_light = false
 	lp.blob(HC, HR, 0.03, func(ctr: Vector3, nm: Vector3) -> Color:
-		return WHITE if (ctr.y < HC.y - 0.035 and nm.z > -0.2) else ORANGE, 2)
+		return FACE_CREAM if (ctr.y < HC.y - 0.035 and nm.z > -0.2) else ORANGE, 2)
+	# a little tuft of fur on top, like the reference
+	for t in [-1, 0, 1]:
+		lp.xf = Transform3D(Basis(Vector3.BACK, -0.35 * t) * Basis(Vector3.RIGHT, 0.35), HC + Vector3(0.025 * t, HR.y * 0.92, 0.02))
+		lp.cyl(Vector3.ZERO, 0.02, 0.0, 0.045 - 0.01 * absf(t), 4, ORANGE)
+	lp.xf = Transform3D.IDENTITY
 	# cream cheeks with pointed fluff, sweeping back and down
 	for s in [-1, 1]:
 		lp.xf = Transform3D(Basis(Vector3.UP, 0.9 * s) * Basis(Vector3.BACK, -1.9 * s), HC + Vector3(0.12 * s, -0.075, 0.0))
@@ -364,84 +377,131 @@ func _process(dt: float) -> void:
 	if (worry > 0.5) != _worried:
 		_worried = worry > 0.5
 		_apply_expr()
+	# eyes: blink with a smooth close/open, widen when surprised
 	_blink -= dt
 	if _blink <= 0.0:
-		_blink = randf_range(2.2, 5.0); _blink_t = 0.12
+		_blink = randf_range(2.2, 5.0); _blink_t = 0.16
+		if randf() < 0.2: _blink_t = 0.36   # now and then a double blink
 	_blink_t = maxf(0.0, _blink_t - dt)
-	_pop = maxf(0.0, _pop - dt * 4.0)
-	var open_scale := 1.3 if _expr == "surprise" else 1.0
+	var lid := 1.0
+	if _blink_t > 0.0:
+		var ph := fmod(_blink_t, 0.2) / 0.16
+		lid = 0.1 + 0.9 * absf(ph * 2.0 - 1.0)
+	_pop = maxf(0.0, _pop - dt * 3.0)
+	var open_scale := 1.25 if _expr == "surprise" else 1.0
+	_eye_open = lerpf(_eye_open, open_scale, _k(dt, 12.0))
 	for eye in eyes:
-		(eye as Node3D).scale = Vector3(open_scale, 0.12 if _blink_t > 0.0 else open_scale, 1.0) * (1.0 + _pop * 0.15)
-	mouth.scale = Vector3.ONE * (1.0 + _pop * 0.25)
+		(eye as Node3D).scale = Vector3(_eye_open, _eye_open * lid, 1.0) * (1.0 + _pop * 0.12)
+	mouth.scale = mouth.scale.lerp(Vector3.ONE * (1.0 + _pop * 0.25), _k(dt, 14.0))
 	var gp := global_position
 	var vel := (gp - _last_pos) / maxf(dt, 0.0001)
 	_last_pos = gp
 	var local_v := global_basis.inverse() * vel
 	var sc: float = global_basis.get_scale().x
 	if sc > 0.0: local_v /= sc
-	match anim:
-		"walk", "hop": _walk(dt)
-		"bump": _bump()
-		"cheer": _cheer()
-		_: _idle()
+	if anim == "bump" and _anim_t > 0.45: anim = "idle"
+	# a target pose from the current action, then every joint eases towards it (no snapping)
+	var walking := anim == "walk" or anim == "hop"
+	_walk_w = move_toward(_walk_w, 1.0 if walking else 0.0, dt * 5.0)
+	_phase += dt * TAU * 2.6 * maxf(_walk_w, 0.2)
+	var P := _idle_pose(dt)
+	if _walk_w > 0.0: _add_walk(P, _walk_w)
+	if anim == "bump": _add_bump(P)
+	if anim == "cheer": _add_cheer(P)
+	_apply_pose(P, dt)
 	_ears(dt)
 	_tail_physics(dt, local_v)
 
 
-func _legs_rest() -> void:
-	for l in legs: (l as Node3D).rotation = Vector3.ZERO
+static func _k(dt: float, speed: float) -> float:
+	return 1.0 - exp(-dt * speed)
 
 
-func _arms(lx: float, rx: float, lz: float, rz: float) -> void:
-	(arms[0] as Node3D).rotation = Vector3(lx, 0, -0.12 - lz)
-	(arms[1] as Node3D).rotation = Vector3(rx, 0, 0.12 + rz)
+## breathing, weight shifts, looking around, a little hand fidget: alive while standing
+func _idle_pose(dt: float) -> Dictionary:
+	var br := sin(_t * TAU / 3.2)                 # one calm breath every ~3 s
+	var br2 := sin(_t * TAU / 3.2 - 0.6)
+	_look_t -= dt
+	if _look_t <= 0.0:   # pick something new to look at
+		_look_t = randf_range(1.6, 3.8)
+		_look = Vector2(randf_range(-0.5, 0.5), randf_range(-0.12, 0.08)) if randf() < 0.75 else Vector2.ZERO
+		if randf() < 0.18 and not ghost: _fidget_t = 1.4
+	_look_s = _look_s.lerp(_look, _k(dt, 3.0))
+	_fidget_t = maxf(0.0, _fidget_t - dt)
+	var sway := sin(_t * 0.7)                      # slow weight shift from foot to foot
+	var P := {
+		"by": br * 0.004, "bx": sway * 0.006,
+		"brx": 0.02 + br2 * 0.015, "bry": _look_s.x * 0.25, "brz": sway * 0.025,
+		"bsx": 1.0 + br * 0.018, "bsy": 1.0 - br * 0.008 + 0.0,
+		"hrx": _look_s.y - br2 * 0.03, "hry": _look_s.x * 0.75, "hrz": sin(_t * 0.5) * 0.08 + _look_s.x * 0.12,
+		"l0": 0.0, "l1": 0.0, "k0": 0.0, "k1": 0.0,
+		"alx": br2 * 0.05, "arx": br2 * 0.05, "alz": 0.04 + br * 0.03, "arz": 0.04 + br * 0.03,
+	}
+	if _fidget_t > 0.0:   # rubs its chin: right hand comes up, head tilts
+		var f := sin(clampf(_fidget_t / 1.4, 0.0, 1.0) * PI)
+		P.arx = -1.5 * f; P.arz = -0.5 * f
+		P.hrz -= 0.15 * f; P.hrx += 0.1 * f
+	if _mood() == "worry":   # shoulders up, hands together, looking down
+		P.alx = -0.6; P.arx = -0.6; P.alz = -0.45; P.arz = -0.45; P.hrx += 0.15; P.bsy -= 0.03
+	elif _mood() == "smile":
+		P.hrz += 0.12
+	return P
 
 
-func _idle() -> void:
-	var br := sin(_t * 2.0)
-	body.position = Vector3.ZERO
-	body.rotation = Vector3.ZERO
-	body.scale = Vector3(1.0 - br * 0.01, 1.0 + br * 0.015, 1.0) * (1.0 + _pop * 0.03)
-	head.rotation = Vector3(sin(_t * 0.9) * 0.04, sin(_t * 0.45) * 0.15, sin(_t * 0.6) * 0.12)   # curious head tilt
-	_legs_rest()
-	_arms(br * 0.04, -br * 0.04, 0.0, 0.0)
-
-
-func _walk(dt: float) -> void:
-	_phase += dt * TAU * 3.0
+func _add_walk(P: Dictionary, w: float) -> void:
 	var s := sin(_phase)
-	body.position = Vector3(0, absf(cos(_phase)) * 0.02, 0)
-	body.rotation = Vector3(0.06, s * 0.08, s * 0.04)
-	body.scale = Vector3.ONE
-	head.rotation = Vector3(-0.04, -s * 0.06, -s * 0.04)
-	(legs[0] as Node3D).rotation.x = s * 0.55
-	(legs[1] as Node3D).rotation.x = -s * 0.55
-	_arms(-s * 0.6, s * 0.6, 0.0, 0.0)   # arms swing against the legs
+	var c := cos(_phase)
+	P.by += absf(c) * 0.018 * w
+	P.brx += 0.07 * w
+	P.bry += s * 0.1 * w
+	P.brz += -s * 0.035 * w
+	P.hry -= s * 0.07 * w
+	P.hrz += s * 0.03 * w
+	P.l0 = lerpf(P.l0, s * 0.6, w); P.l1 = lerpf(P.l1, -s * 0.6, w)
+	P.k0 = maxf(0.0, -s) * 0.35 * w; P.k1 = maxf(0.0, s) * 0.35 * w   # lift the swinging foot
+	P.alx = lerpf(P.alx, -s * 0.65, w); P.arx = lerpf(P.arx, s * 0.65, w)
 
 
-func _bump() -> void:
-	var k := clampf(_anim_t / 0.35, 0.0, 1.0)
-	var hit := sin(k * PI)
-	body.position = Vector3(0, 0, -0.03 * hit)
-	body.rotation = Vector3(-0.2 * hit, 0, 0)
-	body.scale = Vector3(1.0 + hit * 0.08, 1.0 - hit * 0.1, 1.0 + hit * 0.08)
-	head.rotation = Vector3(-0.15 * hit, sin(_anim_t * 30.0) * 0.1 * (1.0 - k), 0)
-	_legs_rest()
-	_arms(-1.2 * hit, -1.2 * hit, 0.4 * hit, 0.4 * hit)   # hands up in surprise
-	if k >= 1.0: anim = "idle"
+func _add_bump(P: Dictionary) -> void:
+	var k := clampf(_anim_t / 0.45, 0.0, 1.0)
+	var hit := sin(k * PI) * (1.0 - k * 0.3)
+	P.bx = 0.0; P.by -= 0.01 * hit
+	P.brx -= 0.25 * hit
+	P.bsx += 0.07 * hit; P.bsy -= 0.09 * hit
+	P.hrx -= 0.2 * hit; P.hry += sin(_anim_t * 26.0) * 0.12 * (1.0 - k)
+	P.alx = -1.3 * hit; P.arx = -1.3 * hit; P.alz = 0.5 * hit; P.arz = 0.5 * hit
 
 
-func _cheer() -> void:
-	var j := absf(sin(_anim_t * 6.5))
-	body.position = Vector3(0, j * 0.12, 0)
-	body.rotation = Vector3(-0.08 * j, sin(_anim_t * 3.0) * 0.3, 0)
-	body.scale = Vector3(1.0 - j * 0.04, 1.0 + j * 0.06, 1.0 - j * 0.04)
-	head.rotation = Vector3(-0.25, 0, sin(_anim_t * 6.5) * 0.15)
-	for l in legs: (l as Node3D).rotation.x = 0.3 * j
-	_arms(-2.6, -2.6, 0.3 + sin(_anim_t * 13.0) * 0.2, 0.3 - sin(_anim_t * 13.0) * 0.2)   # both arms up, waving
+func _add_cheer(P: Dictionary) -> void:
+	var j := absf(sin(_anim_t * 5.5))
+	P.by += j * 0.11
+	P.brx -= 0.08 * j
+	P.bry = sin(_anim_t * 2.6) * 0.3
+	P.bsx = 1.0 - j * 0.035; P.bsy = 1.0 + j * 0.06
+	P.hrx = -0.25; P.hrz = sin(_anim_t * 5.5) * 0.15
+	P.l0 = 0.25 * j; P.l1 = 0.25 * j
+	P.alx = -2.6; P.arx = -2.6
+	P.alz = 0.3 + sin(_anim_t * 11.0) * 0.25; P.arz = 0.3 - sin(_anim_t * 11.0) * 0.25
 
 
-## ears: perk up when surprised or happy, fold back when worried, twitch now and then
+## ease every joint towards the target pose; the body follows faster than the arms and head,
+## so motion overlaps a little instead of moving as one block
+func _apply_pose(P: Dictionary, dt: float) -> void:
+	var kb := _k(dt, 16.0); var kh := _k(dt, 9.0); var ka := _k(dt, 11.0); var kl := _k(dt, 18.0)
+	body.position = body.position.lerp(Vector3(P.bx, P.by, 0.0), kb)
+	body.rotation = body.rotation.lerp(Vector3(P.brx, P.bry, P.brz), kb)
+	var sq := 1.0 + _pop * 0.03
+	body.scale = body.scale.lerp(Vector3(P.bsx * sq, P.bsy * sq, P.bsx * sq), kb)
+	head.rotation = head.rotation.lerp(Vector3(P.hrx, P.hry, P.hrz), kh)
+	(legs[0] as Node3D).rotation = (legs[0] as Node3D).rotation.lerp(Vector3(P.l0, 0, 0), kl)
+	(legs[1] as Node3D).rotation = (legs[1] as Node3D).rotation.lerp(Vector3(P.l1, 0, 0), kl)
+	(legs[0] as Node3D).position.y = lerpf((legs[0] as Node3D).position.y, 0.19 + P.k0 * 0.05, kl)
+	(legs[1] as Node3D).position.y = lerpf((legs[1] as Node3D).position.y, 0.19 + P.k1 * 0.05, kl)
+	(arms[0] as Node3D).rotation = (arms[0] as Node3D).rotation.lerp(Vector3(P.alx, 0, -0.12 - P.alz), ka)
+	(arms[1] as Node3D).rotation = (arms[1] as Node3D).rotation.lerp(Vector3(P.arx, 0, 0.12 + P.arz), ka)
+
+
+## ears: perk up when surprised, fold back when worried, sway with the breath, twitch now and then
 func _ears(dt: float) -> void:
 	var e := _mood()
 	var back := 0.0
@@ -450,26 +510,28 @@ func _ears(dt: float) -> void:
 	elif anim == "bump": back = 0.5
 	_twitch -= dt
 	if _twitch <= 0.0:
-		_twitch = randf_range(2.0, 5.0); _twitch_t = 0.25
+		_twitch = randf_range(2.0, 5.0); _twitch_t = 0.3; _twitch_ear = randi() % 2
 	_twitch_t = maxf(0.0, _twitch_t - dt)
 	for k in 2:
 		var s := -1.0 if k == 0 else 1.0
-		var tw := sin(_twitch_t * 40.0) * 0.25 if (k == 1 and _twitch_t > 0.0) else 0.0
+		var tw := sin(_twitch_t / 0.3 * TAU * 2.0) * 0.22 if (k == _twitch_ear and _twitch_t > 0.0) else 0.0
 		var ear: Node3D = ears[k]
-		ear.rotation.x = lerpf(ear.rotation.x, -back, minf(1.0, dt * 10.0))
-		ear.rotation.z = -0.2 * s - (0.35 * s if e == "worry" else 0.0) + tw
+		var tz := -0.2 * s - (0.35 * s if e == "worry" else 0.0) + tw + sin(_t * 1.9 + k) * 0.03
+		ear.rotation.x = lerpf(ear.rotation.x, -back + sin(_t * 1.3) * 0.03, _k(dt, 10.0))
+		ear.rotation.z = lerpf(ear.rotation.z, tz, _k(dt, 14.0))
 
 
-## the tail lags behind the motion and settles with a spring; wags when happy
+## the tail lags behind the motion and settles with a spring; slow sway at rest, wags when happy
 func _tail_physics(dt: float, v: Vector3) -> void:
 	var target := Vector2(clampf(v.z * 0.6, -1.0, 1.0), clampf(-v.x * 0.6, -0.9, 0.9))
-	target += Vector2(sin(_t * 1.3) * 0.06, sin(_t * 1.1) * 0.15)
+	target += Vector2(sin(_t * 1.3) * 0.08, sin(_t * 0.9) * 0.25)
 	var e := _mood()
-	if anim == "cheer" or e == "joy" or e == "smile": target.y += sin(_t * 14.0) * 0.6
+	if anim == "cheer" or e == "joy" or e == "smile": target.y += sin(_t * 12.0) * 0.55
 	if e == "worry": target.x -= 0.5
-	_tail_v += ((target - _tail_a) * 60.0 - _tail_v * 7.0) * dt
+	_tail_v += ((target - _tail_a) * 45.0 - _tail_v * 8.0) * dt
 	_tail_a += _tail_v * dt
 	if tail.size() == 3:
-		(tail[0] as Node3D).rotation = Vector3(TAIL_REST[0] + _tail_a.x * 0.4, _tail_a.y * 0.5, 0)
-		(tail[1] as Node3D).rotation = Vector3(TAIL_REST[1] + _tail_a.x * 0.3, _tail_a.y * 0.4, 0)
-		(tail[2] as Node3D).rotation = Vector3(TAIL_REST[2] + _tail_a.x * 0.3, _tail_a.y * 0.4, 0)
+		var lag := sin(_t * 0.9 - 0.8) * 0.12   # the tip follows the base a beat later
+		(tail[0] as Node3D).rotation = Vector3(TAIL_REST[0] + _tail_a.x * 0.4, _tail_a.y * 0.45, 0)
+		(tail[1] as Node3D).rotation = Vector3(TAIL_REST[1] + _tail_a.x * 0.3, _tail_a.y * 0.35 + lag, 0)
+		(tail[2] as Node3D).rotation = Vector3(TAIL_REST[2] + _tail_a.x * 0.3, _tail_a.y * 0.3 + lag * 1.5, 0)
