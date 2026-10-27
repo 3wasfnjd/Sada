@@ -1,5 +1,7 @@
 extends Node3D
-## The room as a small diorama: pieces from assets/pieces, the gnome hero and its echoes.
+## The room as a small diorama on a floating island. Since Quest 0.6.0 everything is built in code
+## in a low-poly faceted style (game/lowpoly/): stone floor and walls, stone doors, the island and
+## the hero (a Saudi elder in a shemagh). LOWPOLY = false brings back the imported pieces and gnome.
 ## Board space: one cell = 1 unit, floor top at y = 0, cell (x, y) at (x-(W-1)/2, 0, -(y-(H-1)/2)).
 ## The parent scales this node down to table size. Pure view: it never changes the rules.
 
@@ -9,6 +11,9 @@ const COLOURS := ["Amber", "Pink", "Mint", "Violet"]
 const GLYPH := [Color(1.0, 0.71, 0.28), Color(1.0, 0.44, 0.68), Color(0.49, 0.94, 0.71), Color(0.72, 0.61, 1.0)]
 const ECHO_COLS := [Color(0.56, 0.85, 1.0), Color(0.53, 0.72, 1.0), Color(0.62, 0.94, 0.9), Color(0.73, 0.65, 1.0), Color(0.84, 0.96, 1.0)]
 const HOP := 0.32
+const LOWPOLY := true
+const Env = preload("res://game/lowpoly/env.gd")
+const Hero = preload("res://game/lowpoly/hero.gd")
 
 var R: Dictionary
 var room_node: Node3D
@@ -23,7 +28,8 @@ var ticks := []
 var echo_slots := []
 var _cache := {}
 # the Quest build uses the sharper gnome (16k triangles, 2048 textures) when it is present
-var _gnome: PackedScene = load("res://assets/gnome_quest.glb") if ResourceLoader.exists("res://assets/gnome_quest.glb") else load("res://assets/gnome.glb")
+var _gnome: PackedScene = null if LOWPOLY else (load("res://assets/gnome_quest.glb") if ResourceLoader.exists("res://assets/gnome_quest.glb") else load("res://assets/gnome.glb"))
+var _lp_cache := {}   # code-built meshes shared by every room (door frame, panel, plate, exit)
 var viewer := Vector3(0, 10, 10)   # the player's head in world space (set by main), for the idle glance
 var _ghost_mats := []
 var _statue: StandardMaterial3D
@@ -192,18 +198,27 @@ func build(room: Dictionary) -> void:
 	for y in R.H:
 		for x in R.W:
 			(wall_cells if R.wall[y * R.W + x] == 1 else floor_cells).append(Vector2i(x, y))
-	room_node.add_child(_multi("FloorTile_1x1", floor_cells))
-	if wall_cells.size():
-		room_node.add_child(_multi("WallBlock_1x1", wall_cells))
+	var room_seed: int = hash([R.W, R.H, R.wall])
+	if LOWPOLY:
+		room_node.add_child(_lp_mi(Env.floor_mesh(floor_cells + wall_cells, R.W, R.H, room_seed)))
+		if wall_cells.size():
+			room_node.add_child(_lp_mi(Env.wall_mesh(wall_cells, R.W, R.H, room_seed + 1)))
+		room_node.add_child(_lp_mi(Env.island_mesh(R, room_seed + 2)))
+	else:
+		room_node.add_child(_multi("FloorTile_1x1", floor_cells))
+		if wall_cells.size():
+			room_node.add_child(_multi("WallBlock_1x1", wall_cells))
 	for i in R.doors.size():
 		var d: Dictionary = R.doors[i]
 		var g: int = i % 4
-		var frame := _piece(SHAPES[g] + "Door_frame")
+		var frame: Node3D = _lp_mi(_shared("frame")) if LOWPOLY else _piece(SHAPES[g] + "Door_frame")
 		frame.position = cell(d.x, d.y)
 		room_node.add_child(frame)
-		var panel := _piece(SHAPES[g] + "Door_panel")
+		var panel: Node3D = _lp_mi(_shared("panel")) if LOWPOLY else _piece(SHAPES[g] + "Door_panel")
 		panel.position = cell(d.x, d.y)
 		room_node.add_child(panel)
+		if LOWPOLY:   # a door in a wall running up/down the board turns with it
+			frame.rotation.y = _door_turn(d.x, d.y); panel.rotation.y = frame.rotation.y
 		var mark: MeshInstance3D = null
 		if d.kind == "inverse" or d.kind == "timed":
 			mark = _door_mark(d.kind, GLYPH[g])
@@ -215,7 +230,7 @@ func build(room: Dictionary) -> void:
 		doors.append({"panel": panel, "open": 0.0, "target": 0.0, "mark": mark, "emb": emb, "lit": 0.0, "flash": 0.0, "col": GLYPH[g]})
 	for p in R.plates:
 		var g: int = p.door % 4
-		var n := _piece(COLOURS[g] + "Plate")
+		var n: Node3D = _lp_mi(_shared("plate")) if LOWPOLY else _piece(COLOURS[g] + "Plate")
 		n.position = cell(p.x, p.y)
 		room_node.add_child(n)
 		if R.doors[p.door].kind == "inverse":
@@ -226,11 +241,11 @@ func build(room: Dictionary) -> void:
 		ph.position = cell(p.x, p.y, 0.11)
 		room_node.add_child(ph)
 		plates.append({"node": n, "on": 0.0, "target": 0.0, "halo": ph, "col": GLYPH[g]})
-	exit_node = _piece("ExitRing")
+	exit_node = _lp_mi(_shared("exit")) if LOWPOLY else _piece("ExitRing")
 	exit_node.position = cell(R.exit.x, R.exit.y)
 	room_node.add_child(exit_node)
 	_exit_fx()
-	_ground()
+	if not LOWPOLY: _ground()   # the island replaces the dark footprint
 	link = MultiMeshInstance3D.new()
 	var lmm := MultiMesh.new(); lmm.transform_format = MultiMesh.TRANSFORM_3D
 	var ld := SphereMesh.new(); ld.radius = 0.06; ld.height = 0.12; ld.radial_segments = 8; ld.rings = 4
@@ -245,6 +260,33 @@ func build(room: Dictionary) -> void:
 	clear_hint()
 
 
+func _lp_mi(m: Mesh) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = m
+	return mi
+
+
+func _shared(k: String) -> Mesh:
+	if not _lp_cache.has(k):
+		match k:
+			"frame": _lp_cache[k] = Env.door_frame_mesh(5)
+			"panel": _lp_cache[k] = Env.door_panel_mesh(6)
+			"plate": _lp_cache[k] = Env.plate_mesh(7)
+			"exit": _lp_cache[k] = Env.exit_mesh(8)
+	return _lp_cache[k]
+
+
+func _is_wall(x: int, y: int) -> bool:
+	return x >= 0 and y >= 0 and x < R.W and y < R.H and R.wall[y * R.W + x] == 1
+
+
+## doors stand along x; one with walls above and below it (and none beside) turns a quarter
+func _door_turn(x: int, y: int) -> float:
+	if _is_wall(x - 1, y) or _is_wall(x + 1, y): return 0.0
+	if _is_wall(x, y - 1) or _is_wall(x, y + 1): return PI / 2
+	return 0.0
+
+
 ## inverse doors: hollow ring above the door; timed doors: three small pips (same idea as the web)
 func _door_mark(kind: String, c: Color) -> MeshInstance3D:
 	var m := MeshInstance3D.new()
@@ -253,7 +295,7 @@ func _door_mark(kind: String, c: Color) -> MeshInstance3D:
 		m.mesh = t
 		m.rotation.x = PI / 2
 	else:
-		var s := SphereMesh.new(); s.radius = 0.09; s.height = 0.18
+		var s := SphereMesh.new(); s.radius = 0.09; s.height = 0.18; s.radial_segments = 10; s.rings = 5
 		m.mesh = s
 	m.material_override = _glow(c)
 	return m
@@ -469,7 +511,7 @@ func _build_ticks() -> void:
 	var y0 := -1.0
 	var L: int = R.L
 	var w := minf(R.W - 0.4, L * 0.32)
-	var dot := SphereMesh.new(); dot.radius = 0.07; dot.height = 0.14
+	var dot := SphereMesh.new(); dot.radius = 0.07; dot.height = 0.14; dot.radial_segments = 10; dot.rings = 5
 	for i in L:
 		var m := MeshInstance3D.new()
 		m.mesh = dot
@@ -478,7 +520,7 @@ func _build_ticks() -> void:
 		ticks_node.add_child(m)
 		ticks.append(m)
 	var e: int = R.E
-	var cap := CapsuleMesh.new(); cap.radius = 0.1; cap.height = 0.34
+	var cap := CapsuleMesh.new(); cap.radius = 0.1; cap.height = 0.34; cap.radial_segments = 10; cap.rings = 2
 	for i in e:
 		var m := MeshInstance3D.new()
 		m.mesh = cap
@@ -487,7 +529,16 @@ func _build_ticks() -> void:
 		echo_slots.append(m)
 
 
+## the hero's face (code-built hero only): smile, surprise, worry, joy
+func hero_expr(x: String, seconds: float) -> void:
+	if ents.size() and ents[ents.size() - 1].node.has_method("expr"):
+		ents[ents.size() - 1].node.expr(x, seconds)
+
+
 func show_timeline(done: int, echoes: int) -> void:
+	if ents.size() and ents[ents.size() - 1].node.has_method("expr"):
+		var left := ticks.size() - done
+		ents[ents.size() - 1].node.worry = 1.0 if (left <= 2 and left > 0 and done > 0) else 0.0
 	for i in ticks.size():
 		var m: MeshInstance3D = ticks[i]
 		var left := ticks.size() - done
@@ -507,13 +558,19 @@ func spawn(count: int, pos: Dictionary) -> void:
 		e.node.queue_free()
 	ents.clear()
 	for i in count:
-		var n: Node3D = _gnome.instantiate()
 		var ghost := i < count - 1
-		if ghost:
+		var n: Node3D
+		if LOWPOLY:
+			n = Hero.new()
+			n.build(ghost, _ghost_mats[i % _ghost_mats.size()])
+		else:
+			n = _gnome.instantiate()
+		if ghost and not LOWPOLY:
 			for mi in n.find_children("*", "MeshInstance3D", true, false):
 				(mi as MeshInstance3D).material_override = _ghost_mats[i % _ghost_mats.size()]
 		add_child(n)
-		var ap: AnimationPlayer = n.find_children("*", "AnimationPlayer", true, false)[0] if n.find_children("*", "AnimationPlayer", true, false).size() else null
+		var aps := n.find_children("*", "AnimationPlayer", true, false)
+		var ap: AnimationPlayer = aps[0] if aps.size() else null
 		var p: Vector2i = pos.p[i]
 		var e := {"node": n, "ap": ap, "from": cell(p.x, p.y), "to": cell(p.x, p.y), "t": 1.0, "dur": HOP, "yaw": 0.0, "tyaw": 0.0, "bump": Vector3.ZERO, "ghost": ghost, "anim": "", "still": 0.0}
 		ents.append(e)
@@ -547,6 +604,10 @@ func _spread(pos: Dictionary) -> Array:
 
 
 func _play(e: Dictionary, name: String) -> void:
+	if e.node.has_method("play"):   # the code-built hero animates itself
+		e.anim = name
+		e.node.play(name)
+		return
 	var ap: AnimationPlayer = e.ap
 	if ap == null:
 		return
@@ -602,6 +663,7 @@ func cheer(i: int) -> void:
 
 
 func _has(e: Dictionary, name: String) -> bool:
+	if e.node.has_method("play"): return true
 	return e.ap != null and (e.ap as AnimationPlayer).has_animation(name)
 
 
@@ -615,8 +677,11 @@ func snap(pos: Dictionary) -> void:
 
 
 func update_doors(open: Array, pos: Dictionary) -> void:
+	var opened := false
 	for i in doors.size():
+		if open[i] and doors[i].target < 0.5: opened = true
 		doors[i].target = 1.0 if open[i] else 0.0
+	if opened: hero_expr("smile", 1.4)
 	var pinned: Array = R.get("pinned", [])
 	for j in plates.size():
 		var pl: Dictionary = R.plates[j]

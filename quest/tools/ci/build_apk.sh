@@ -147,6 +147,8 @@ if [ "${SKIP_TESTS:-0}" != "1" ]; then
   "$GODOT" --headless --xr-mode off --path "$ROOT" -s res://tests/run_tests.gd 2>&1 | grep -v "OpenXR" | tail -8
   "$GODOT" --headless --xr-mode off --path "$ROOT" -s res://tests/play_test.gd 2>&1 | grep -v "OpenXR" | tee "$OUT/test-report.txt" | tail -12
   grep -q "play test: 0 failure" "$OUT/test-report.txt"
+  "$GODOT" --headless --xr-mode off --path "$ROOT" -s res://tests/art_test.gd 2>&1 | grep -v "OpenXR" | tee "$OUT/art-report.txt" | tail -6
+  grep -q "art test: 0 failure" "$OUT/art-report.txt"
 fi
 
 log "Export"
