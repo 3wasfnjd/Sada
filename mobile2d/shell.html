@@ -24,7 +24,9 @@ body {
 }
 #app { position: fixed; inset: 0; display: flex; flex-direction: column; }
 #stage { position: relative; flex: 1; min-height: 0; }
-#cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#cv, #ov { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#ov { pointer-events: none; }
+#stage { background: linear-gradient(#5fb0e8, #9fd3f2 60%, #e9e6d8); }
 #top {
   position: absolute; top: 0; inset-inline: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: calc(env(safe-area-inset-top, 0px) + 12px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
@@ -75,7 +77,7 @@ body {
 </style>
 <div id="app" dir="rtl">
   <div id="stage">
-    <canvas id="cv" aria-label="لوح اللعب"></canvas>
+    <canvas id="cv" aria-label="لوح اللعب"></canvas><canvas id="ov" aria-hidden="true"></canvas>
     <div id="top"><div id="room">١</div><div id="right"><div id="helps" aria-label="المساعدات"></div><button id="bSound" aria-label="الصوت"><svg viewBox="0 0 24 24"><path d="M4 9h3l5-4v14l-5-4H4z"/><path class="w" d="M16 9a4 4 0 0 1 0 6"/><path class="x" d="M16 9l5 6M21 9l-5 6"/></svg></button></div></div>
     <div id="toast"></div>
     <div id="title" role="button" tabindex="0" aria-label="ابدأ">

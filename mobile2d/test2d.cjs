@@ -11,7 +11,7 @@ const path = require('path');
   p.on('pageerror', e => errs.push(String(e)));
   p.on('console', m => { if (m.type() === 'error' && !/ERR_TUNNEL|fonts\.g/.test(m.text())) errs.push(m.text()); });   // fonts are offline here
   await p.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
-  await p.goto('file://' + path.resolve(page_));
+  await p.goto(/^https?:/.test(page_) ? page_ : 'file://' + path.resolve(page_));
   await p.waitForTimeout(1500);
   if (shots) await p.screenshot({ path: shots + '/0_title.png' });
   await p.mouse.click(195, 400);
