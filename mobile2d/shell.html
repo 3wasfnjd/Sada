@@ -1,76 +1,82 @@
 <title>صدى</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="theme-color" content="#151330">
+<meta name="theme-color" content="#7fb8d8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@700&family=Readex+Pro:wght@400;600&display=swap">
 <style>
-/* Layout: one screen, the paper diorama fills it; a thin icon rail at the bottom. Single night look by design. */
+/* Layout: one screen; the floating island fills it; a slim icon rail at the bottom. Single daylight look (matches the Quest version). */
 :root {
-  --night: #151330;      /* the room's darkness, a blue-violet ink */
-  --ink: #0d0c1f;
-  --paper: #efe2c8;      /* cut paper */
-  --lantern: #ffb547;    /* the hero's light */
-  --echo: #8fd8ff;       /* memories */
-  --mute: #8d86b8;
+  --sky: #b9d9e4;
+  --ink: #2b2a26;        /* warm dark for text on the sky */
+  --paper: #fff8ec;
+  --amber: #ffb547;      /* helps, highlights */
+  --leaf: #5f9e33;
+  --rail: #2f3a33;       /* mossy slate */
+  --mute: #5e6b66;
   --display: "Aref Ruqaa", "Amiri", "Noto Naskh Arabic", serif;
   --ui: "Readex Pro", "Noto Sans Arabic", system-ui, sans-serif;
-  color-scheme: dark;
+  color-scheme: light;
 }
 html, body { height: 100%; }
 body {
-  margin: 0; background: var(--night); color: var(--paper); font-family: var(--ui);
-  overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none;
-  -webkit-tap-highlight-color: transparent;
+  margin: 0; background: var(--sky); color: var(--ink); font-family: var(--ui);
+  overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
 }
 #app { position: fixed; inset: 0; display: flex; flex-direction: column; }
 #stage { position: relative; flex: 1; min-height: 0; }
 #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #top {
-  position: absolute; top: 0; inset-inline: 0; display: flex; align-items: center; justify-content: space-between;
-  padding: calc(env(safe-area-inset-top, 0px) + 10px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+  position: absolute; top: 0; inset-inline: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
   pointer-events: none; font-variant-numeric: tabular-nums;
 }
-#room { font-family: var(--display); font-size: 30px; line-height: 1; color: var(--paper); opacity: .9; }
+#room { font-family: var(--display); font-size: 32px; line-height: 1; color: var(--paper); text-shadow: 0 2px 0 #3b5a6688; }
+#right { display: flex; align-items: center; gap: 12px; }
 #helps { display: flex; gap: 5px; align-items: center; }
-#helps i { width: 9px; height: 9px; border-radius: 50%; background: var(--lantern); box-shadow: 0 0 8px var(--lantern); }
-#helps i.off { background: transparent; box-shadow: none; outline: 1.5px solid #ffb54755; }
+#helps i { width: 10px; height: 10px; transform: rotate(45deg); border-radius: 2px; background: var(--amber); box-shadow: 0 1px 0 #b0731c; }
+#helps i.off { background: #ffffff55; box-shadow: none; }
+#bSound { pointer-events: auto; width: 34px; height: 34px; border-radius: 12px; border: 0; background: #ffffff55; color: var(--ink); display: grid; place-items: center; padding: 0; cursor: pointer; }
+#bSound svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#bSound .x { display: none; }
+#bSound.off .x { display: inline; }
+#bSound.off .w { display: none; }
+#bSound:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 #rail {
-  display: flex; justify-content: center; gap: 10px; flex-wrap: nowrap;
-  padding: 8px max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 12px) max(16px, env(safe-area-inset-left, 0px));
-  background: linear-gradient(transparent, #0d0c1fcc 40%);
+  display: flex; justify-content: center; gap: 10px;
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 12px) max(16px, env(safe-area-inset-left, 0px));
+  background: var(--rail);
 }
 #rail button {
-  width: 52px; height: 52px; border-radius: 16px; border: 1.5px solid #efe2c833; background: #1d1a40;
-  color: var(--paper); display: grid; place-items: center; padding: 0; cursor: pointer; position: relative;
-  transition: transform .12s, background .2s, border-color .2s;
+  width: 52px; height: 52px; border-radius: 16px; border: 0; background: #ffffff14; box-shadow: inset 0 -3px 0 #00000033;
+  color: var(--paper); display: grid; place-items: center; padding: 0; cursor: pointer;
+  transition: transform .12s, background .2s, color .2s;
 }
-#rail button:active { transform: scale(.92); }
-#rail button:focus-visible { outline: 2px solid var(--lantern); outline-offset: 2px; }
+#rail button:active { transform: translateY(2px); box-shadow: inset 0 -1px 0 #00000033; }
+#rail button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 #rail button svg { width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-#rail button.armed { background: #ffb54733; border-color: var(--lantern); color: var(--lantern); }
+#rail button.armed { background: #ffb54733; color: var(--amber); }
 #rail button.pulse { animation: pulse 1.4s ease-in-out infinite; }
 #rail button.dim { opacity: .35; }
-@keyframes pulse { 50% { border-color: var(--lantern); box-shadow: 0 0 16px #ffb54766; } }
+@keyframes pulse { 50% { background: #ffb54744; color: var(--amber); } }
 #title {
-  position: absolute; inset: 0; display: grid; place-items: center; text-align: center; background: radial-gradient(circle at 50% 42%, #2a2560 0%, var(--night) 62%);
-  cursor: pointer; z-index: 5; padding-inline: max(16px, env(safe-area-inset-left, 0px));
+  position: absolute; inset: 0; display: grid; place-items: center; text-align: center; cursor: pointer; z-index: 5;
+  background: linear-gradient(#7fb8d8, #b9d9e4 55%, #f2dfc4); padding-inline: max(16px, env(safe-area-inset-left, 0px));
 }
-#title h1 { font-family: var(--display); font-weight: 700; font-size: clamp(88px, 30vw, 160px); margin: 0; line-height: 1; color: var(--paper);
-  text-shadow: 0 0 40px #ffb54755, 0 6px 0 #0d0c1f; }
-#title h1 span { display: inline-block; animation: echo 3.2s ease-in-out infinite; color: var(--echo); opacity: 0; position: absolute; inset: 0; text-align: center; text-shadow: none; z-index: -1; }
-@keyframes echo { 0% { opacity: 0; transform: translateX(0); } 40% { opacity: .35; } 100% { opacity: 0; transform: translateX(46px); } }
-#title p { margin: 18px 0 0; font-size: 15px; color: var(--mute); letter-spacing: .02em; }
 #title .wrap { position: relative; }
-#title h1 { position: relative; }
-#toast { position: absolute; left: 50%; top: 22%; transform: translate(-50%, 0); font-family: var(--display); font-size: 44px; color: var(--lantern);
-  text-shadow: 0 0 20px #ffb54788; pointer-events: none; opacity: 0; transition: opacity .3s, transform .3s; }
+#title h1 { position: relative; font-family: var(--display); font-weight: 700; font-size: clamp(88px, 30vw, 160px); margin: 0; line-height: 1; color: var(--paper);
+  text-shadow: 0 6px 0 #d8743a, 0 10px 24px #3b5a6655; }
+#title h1 span { position: absolute; inset: 0; text-align: center; color: #e87a33; opacity: 0; z-index: -1; text-shadow: none; animation: echo 3.2s ease-in-out infinite; }
+@keyframes echo { 0% { opacity: 0; transform: translateX(0); } 40% { opacity: .4; } 100% { opacity: 0; transform: translateX(46px); } }
+#title p { margin: 22px 0 0; font-size: 15px; color: var(--mute); }
+#toast { position: absolute; left: 50%; top: 22%; transform: translate(-50%, 0); font-family: var(--display); font-size: 44px; color: var(--paper);
+  text-shadow: 0 3px 0 #d8743a; pointer-events: none; opacity: 0; transition: opacity .3s, transform .3s; }
 #toast.on { opacity: 1; transform: translate(-50%, -8px); }
 @media (prefers-reduced-motion: reduce) { #title h1 span { animation: none; } #rail button.pulse { animation: none; } }
 </style>
 <div id="app" dir="rtl">
   <div id="stage">
     <canvas id="cv" aria-label="لوح اللعب"></canvas>
-    <div id="top"><div id="room">١</div><div id="helps" aria-label="المساعدات"></div></div>
+    <div id="top"><div id="room">١</div><div id="right"><div id="helps" aria-label="المساعدات"></div><button id="bSound" aria-label="الصوت"><svg viewBox="0 0 24 24"><path d="M4 9h3l5-4v14l-5-4H4z"/><path class="w" d="M16 9a4 4 0 0 1 0 6"/><path class="x" d="M16 9l5 6M21 9l-5 6"/></svg></button></div></div>
     <div id="toast"></div>
     <div id="title" role="button" tabindex="0" aria-label="ابدأ">
       <div class="wrap"><h1>صدى<span aria-hidden="true">صدى</span></h1><p>المس للبدء</p></div>

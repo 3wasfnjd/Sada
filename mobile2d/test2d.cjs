@@ -51,6 +51,17 @@ const path = require('path');
   await p.evaluate(() => { const s = window.__sada; s.S.help = 3; s.showHint(); });
   await p.waitForTimeout(400);
   if (shots) await p.screenshot({ path: shots + '/hint7.png' });
+  // expression sheet: the fox close up in each mood, plus an echo
+  if (shots) {
+    await p.evaluate(() => { const s = window.__sada; s.S.demoSeen = { 2: 1, 3: 1, 4: 1, 5: 1 }; s.loadRoom(3); });
+    await p.waitForTimeout(900);
+    for (const ex of ['calm', 'happy', 'oops', 'worry', 'cheer']) {
+      const box = await p.evaluate(ex => { const s = window.__sada, e = s.ents[s.ents.length - 1]; s.setExpr(e, ex, 9); e.blink = 9; e.blinkT = 0; const r = document.getElementById('cv').getBoundingClientRect(); return null; }, ex);
+      await p.waitForTimeout(250);
+      const c = await p.evaluate(() => { const s = window.__sada, e = s.ents[s.ents.length - 1]; return window.__heroBox ? window.__heroBox() : null; });
+      if (c) await p.screenshot({ path: `${shots}/fox_${ex}.png`, clip: c });
+    }
+  }
   console.log('errors:', errs.length ? errs.join(' | ') : 'none');
   console.log(fails ? `FAIL ${fails} room(s)` : 'all rooms won');
   await b.close();
