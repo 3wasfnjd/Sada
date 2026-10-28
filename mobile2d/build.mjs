@@ -10,5 +10,6 @@ const logic = readFileSync(join(here, '..', 'src', 'logic.js'), 'utf8');
 const game = ['head', 'flow', 'tail'].map(n => readFileSync(join(here, 'parts', n + '.js'), 'utf8')).join('\n');
 writeFileSync(join(here, 'game2d.js'), game);   // the joined file, kept for reading
 mkdirSync(dirname(out), { recursive: true });
-writeFileSync(out, shell + '\n<script>\n' + logic + '\n</script>\n<script>\n' + game + '\n</script>\n');
+const art = readFileSync(join(here, 'art', 'art.js'), 'utf8');
+writeFileSync(out, shell + '\n<script>\n' + art + '\n</script>\n<script>\n' + logic + '\n</script>\n<script>\n' + game + '\n</script>\n');
 console.log('wrote', out);

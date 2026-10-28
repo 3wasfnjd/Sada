@@ -4,7 +4,7 @@ function loadRoom(n) {
   S.echoes = []; S.acts = []; S.walk = []; S.won = false; S.busy = false; S.fails = 0; S.pinMode = false; hint = null; hover = -1;
   S.R.pinned = [];
   recompute(); doorFx = S.R.doors.map(() => ({ open: 0, lit: 0, flash: 0 })); plateFx = S.R.plates.map(() => ({ on: 0 }));
-  spawnEnts(); doorsUpdate(true); layout(); ui(); save();
+  spawnEnts(); doorsUpdate(true); cam.overview = false; layout(); snapCam(); ui(); save();
   S.enterT = performance.now();
   if (S.R.tutorial && n > 1 && !S.demoSeen[n] && S.started) { S.demoSeen[n] = 1; save(); setTimeout(() => startDemo(true), 900); }
 }
@@ -19,7 +19,7 @@ function doAction(a, fromDemo) {
     hero.face = a; hero.bump = 1; hero.t = 0; hero.fx = hero.tx = hero.x; hero.fy = hero.ty = hero.y; hero.dur = 220;
     setExpr(hero, 'oops', .7); SFX.bump(); buzz(15); S.walk = [];
     const d = E.DIRS[a], di = E.doorAt(S.R, pos[pos.length - 1].x + d[0], pos[pos.length - 1].y + d[1]); if (di >= 0) doorFx[di].flash = 1;
-    burst(bx(hero.x + .5 + d[0] * .4), by(hero.y + .5 + d[1] * .4), ['#c9c4ba', '#ead2ae'], 6, 120);
+    { const q = scr(hero.x + d[0] * .4, hero.y + d[1] * .4, .3); burst(q[0], q[1], ['#c9c4ba', '#ead2ae'], 6, 120); }
     return false;
   }
   S.acts.push(a); S.states.push(next);
@@ -98,7 +98,7 @@ function win() {
   const hero = ents[ents.length - 1];
   setExpr(hero, 'cheer', 2.5); hero.jumpV = 1.6; hero.jump = .01;
   SFX.win(); buzz([20, 40, 20]);
-  burst(sx(S.R.exit.x), sy(S.R.exit.y), ['#ffb547', '#8fd14f', '#ff6fae', '#46d6a0', '#e87a33'], 40, 260);
+  { const q = scr(S.R.exit.x, S.R.exit.y, 1); burst(q[0], q[1], ['#ffb547', '#8fd14f', '#ff6fae', '#46d6a0', '#e87a33'], 40, 260); }
   if (S.demo) { setTimeout(() => { stopDemo(); toast('▶'); }, 900); return; }
   S.solved++;
   if (S.solved % 3 === 0 && S.help < MAX_HELP) S.help++;
@@ -173,7 +173,6 @@ function ui() {
 
 // ---------------- input: swipe to step, tap a cell to walk there ----------------
 let touch = null;
-function cellAt(px, py) { return { x: Math.floor((px - OX) / CS), y: S.R.H - 1 - Math.floor((py - OY) / CS) }; }
 cv.addEventListener('pointerdown', e => { touch = { x: e.clientX, y: e.clientY, t: performance.now() }; const r = cv.getBoundingClientRect(); const c = cellAt(e.clientX - r.left, e.clientY - r.top); hover = hoverDoor(c); });
 cv.addEventListener('pointerup', e => {
   if (!touch || !S.started) return;
@@ -181,7 +180,7 @@ cv.addEventListener('pointerup', e => {
   touch = null; setTimeout(() => (hover = -1), 900);
   if (S.demo) return stopDemo();
   if (Math.hypot(dx, dy) > 24) {
-    const a = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'R' : 'L') : (dy > 0 ? 'D' : 'U');
+    const a = swipeMove(dx, dy);   // the board is isometric: pick the grid direction closest to the swipe
     S.walk = []; doAction(a); return;
   }
   const c = cellAt(e.clientX - r.left, e.clientY - r.top);
