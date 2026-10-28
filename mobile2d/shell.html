@@ -73,6 +73,16 @@ body {
 #toast { position: absolute; left: 50%; top: 22%; transform: translate(-50%, 0); font-family: var(--display); font-size: 44px; color: var(--paper);
   text-shadow: 0 3px 0 #d8743a; pointer-events: none; opacity: 0; transition: opacity .3s, transform .3s; }
 #toast.on { opacity: 1; transform: translate(-50%, -8px); }
+body.najd #stage { background: linear-gradient(#f4c08c, #f2b58a); }
+/* low sun: a warm glare from the upper left and a soft vignette, over the 3D view and under the UI */
+body.najd #stage::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background: radial-gradient(120% 70% at 0% 0%, #fff1cf88 0%, #ffd29a33 35%, transparent 60%), radial-gradient(140% 100% at 50% 45%, transparent 55%, #4a221466 100%); }
+body.najd #top, body.najd #toast { z-index: 2; }
+body.najd #title { background: linear-gradient(#24325e, #c9735a 55%, #f6c48f); }
+body.najd #title h1 { text-shadow: 0 6px 0 #a9622f, 0 10px 30px #00000055; }
+body.najd #title p { color: #fde8cf; }
+body.najd #rail { background: #3a2a22; }
+body.najd #room { text-shadow: 0 2px 0 #a9622f; }
 @media (prefers-reduced-motion: reduce) { #title h1 span { animation: none; } #rail button.pulse { animation: none; } }
 </style>
 <div id="app" dir="rtl">

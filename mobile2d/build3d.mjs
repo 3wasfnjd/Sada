@@ -6,14 +6,15 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const local = process.argv.includes('--local');
+const najd = process.argv.includes('--najd');   // my own art direction (parts3d/najd.js) on top of the base 3D build
 const T = local ? '../../vendor/three/three.module.min.js' : 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js';
 const U = local ? '../../vendor/three/addons/utils/BufferGeometryUtils.js' : 'https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/utils/BufferGeometryUtils.js';
-const shell = readFileSync(join(here, 'shell.html'), 'utf8');
+const shell = readFileSync(join(here, 'shell.html'), 'utf8').replace('<title>صدى</title>', najd ? '<title>صدى نجد</title>' : '<title>صدى</title>');
 const art = readFileSync(join(here, 'art', 'art.js'), 'utf8');
 const logic = readFileSync(join(here, '..', 'src', 'logic.js'), 'utf8');
-const game = [join(here, 'parts3d', 'head.js'), join(here, 'parts', 'flow.js'), join(here, 'parts3d', 'tail.js')].map(f => readFileSync(f, 'utf8')).join('\n');
-writeFileSync(join(here, 'game3d.js'), game);
-const out = join(here, 'dist', local ? 'sada3d.local.html' : 'sada3d.html');
+const game = [join(here, 'parts3d', 'head.js'), ...(najd ? [join(here, 'parts3d', 'najd.js')] : []), join(here, 'parts', 'flow.js'), join(here, 'parts3d', 'tail.js')].map(f => readFileSync(f, 'utf8')).join('\n');
+writeFileSync(join(here, najd ? 'game_najd.js' : 'game3d.js'), game);
+const out = join(here, 'dist', (najd ? 'sada_najd' : 'sada3d') + (local ? '.local' : '') + '.html');
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, shell +
   `\n<script type="importmap">${JSON.stringify({ imports: { three: T } })}</script>\n<script>\n${art}\n</script>\n<script>\n${logic}\n</script>\n` +
