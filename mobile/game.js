@@ -45,7 +45,7 @@ function resize() {
 }
 function layout() {
   if (!S.R || VW < 50) return;
-  const R = S.R, top = $('top').getBoundingClientRect().bottom + 18, bot = VH - $('bar').getBoundingClientRect().top + 18;
+  const R = S.R, top = $('top').getBoundingClientRect().bottom + 18, bot = VH - $('bar').getBoundingClientRect().top + 18 + (R.tutorial ? 70 : 0);
   const availW = VW - 32, availH = VH - top - bot;
   const s = Math.floor(Math.min(76, availW / (R.W + .7), availH / (R.H + .9)));
   B.s = s; B.h = Math.round(s * .16); B.pad = Math.round(s * .34);
@@ -79,6 +79,10 @@ function buildTop() {
   g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000'; g.beginPath();
   for (let y = 0; y < R.H; y++) for (let x = 0; x < R.W; x++) if (!isWall(x, y)) floorRect(g, x, y, -B.h);
   g.fill(); g.globalCompositeOperation = 'source-over';
+  // a soft cool edge where the white meets each hole, so the walls read as raised blocks
+  g.save(); g.globalCompositeOperation = 'source-atop'; g.strokeStyle = 'rgba(160,178,204,.55)'; g.lineWidth = 2; g.beginPath();
+  for (let y = 0; y < R.H; y++) for (let x = 0; x < R.W; x++) if (!isWall(x, y)) floorRect(g, x, y, -B.h);
+  g.stroke(); g.restore();
   topLayer = c;
 }
 function drawBoard(T) {
@@ -162,14 +166,28 @@ function drawDoor(i, T) {
   ctx.translate(cx, top + bh / 2); ctx.fillStyle = '#fff'; glyph(ctx, G, s * .13); ctx.fill();
   if (f.flash > 0) { ctx.globalAlpha = f.flash * .5 * (1 - o); ctx.beginPath(); ctx.roundRect(-bw / 2, -bh / 2, bw, bh, s * .18); ctx.fill(); }
   ctx.restore();
-  // timed gate: the ticks it stays open after the plate is left
-  if (d.kind === 'timed') {
-    const t = (cur().timers || [])[i] || 0, held = plateHeld(i);
-    for (let k = 0; k < E.TIMER; k++) {
-      const a = k < t && !held ? 1 : .3;
-      ctx.fillStyle = shade(G.c, -.2, a); ctx.beginPath(); ctx.arc(X + s / 2 + (k - (E.TIMER - 1) / 2) * s * .17, Y + s - m * .2 - B.h * .5, s * .05, 0, Math.PI * 2); ctx.fill();
-    }
+  if (d.kind === 'timed') drawTimer(i, X, Y, G, o, T);
+}
+function drawTimer(i, X, Y, G, o, T) {
+  const s = B.s, t = (cur().timers || [])[i] || 0, held = plateHeld(i);
+  if (o < .5) {   // closed: a little clock badge on the gate's corner says "this one runs on time"
+    const bx = X + s * .78, by = Y + s * .2 - B.h, r = s * .14;
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = shade(G.c, -.35); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx, by - r * .6); ctx.moveTo(bx, by); ctx.lineTo(bx + r * .45, by + r * .2); ctx.stroke();
+    return;
   }
+  if (held || t <= 0) return;
+  // open on its own: ticks left, big and clear, in a ring that empties
+  const [cx, cy] = [X + s / 2, Y + s / 2 - B.h * .5], r = s * .26;
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = G.c; ctx.lineWidth = s * .07; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * t / E.TIMER); ctx.stroke();
+  ctx.fillStyle = shade(G.c, -.4); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `800 ${Math.round(s * .3 * (1 + Math.max(0, Math.sin(T * 8)) * .08))}px "Baloo Bhaijaan 2", system-ui, sans-serif`;
+  ctx.fillText(AR(t), cx, cy + s * .02);
+  ctx.restore();
 }
 function plateHeld(i) { const pos = cur(); return S.R.plates.some(p => p.door === i && (pos.some(e => e.x === p.x && e.y === p.y) || (S.R.pinned || []).some(e => e.x === p.x && e.y === p.y))); }
 function drawExit(T) {
@@ -188,50 +206,85 @@ function drawExit(T) {
   ctx.restore();
 }
 
-// ---------------- the blob: hero (orange) and echoes (blue, eyes closed) ----------------
-// Drawn in code: squashy body, sprout on top, big eyes that look where it walks, little feet.
+// ---------------- the characters ----------------
+// Hero: a chubby orange creature with a sprout, outlined like a sticker, glossy, with arms and feet.
+// Echoes (أطياف): the same creature as a translucent blue spirit — eyes closed, a wavy tail instead of feet, floating.
+function blobPath(c, r, by, ghost, T, seed) {
+  c.beginPath();
+  c.moveTo(-r * .93, by + r * .18);
+  c.bezierCurveTo(-r * .99, by - r * .76, -r * .52, by - r * 1.0, 0, by - r * 1.0);
+  c.bezierCurveTo(r * .52, by - r * 1.0, r * .99, by - r * .76, r * .93, by + r * .18);
+  if (!ghost) {
+    c.bezierCurveTo(r * .9, by + r * .74, r * .52, by + r * .82, 0, by + r * .82);
+    c.bezierCurveTo(-r * .52, by + r * .82, -r * .9, by + r * .74, -r * .93, by + r * .18);
+  } else {
+    // wavy spirit tail: four soft scallops that ripple
+    c.bezierCurveTo(r * .95, by + r * .6, r * .9, by + r * .85, r * .82, by + r * .98);
+    const n = 4, w = r * 1.64 / n;
+    for (let k = 0; k < n; k++) {
+      const x0 = r * .82 - k * w, ph = T * 5 + k * 1.6 + seed;
+      c.quadraticCurveTo(x0 - w * .5, by + r * (.68 + Math.sin(ph) * .06), x0 - w, by + r * (.98 + Math.sin(ph + .8) * .07));
+    }
+    c.bezierCurveTo(-r * .9, by + r * .85, -r * .95, by + r * .6, -r * .93, by + r * .18);
+  }
+  c.closePath();
+}
 function drawBlob(c, X, Y, r, o) {
-  const col = o.col, dk = o.dk, T = o.T, dir = E.DIRS[o.face] || [0, -1];
+  const col = o.col, dk = o.dk, T = o.T, dir = E.DIRS[o.face] || [0, -1], ghost = !!o.ghost, seed = o.seed || 0;
+  const line = shade(col, ghost ? -.35 : -.5, ghost ? .55 : 1), lw = r * .075;
   const ph = o.walkPh || 0, ww = o.walkW || 0, hop = Math.abs(Math.sin(ph * Math.PI / 4)) * r * .14 * ww;
-  const breathe = Math.sin(T * 2.4 + (o.seed || 0)) * .025;
+  const breathe = Math.sin(T * 2.4 + seed) * .025;
   const sq = (o.squash || 0) + breathe - hop / r * .3;
-  const lift = (o.jump || 0) * r * 1.2 + hop;
+  const float = ghost ? r * (.12 + Math.sin(T * 2.6 + seed) * .07) : 0;
+  const lift = (o.jump || 0) * r * 1.2 + hop + float;
   c.save(); c.globalAlpha *= o.alpha == null ? 1 : o.alpha;
   // shadow
-  c.fillStyle = 'rgba(30,40,60,.22)'; c.beginPath(); c.ellipse(X, Y + r * .78, r * (.78 - lift / r * .25), r * .22, 0, 0, Math.PI * 2); c.fill();
-  c.translate(X, Y + r * .78 - lift);
+  c.fillStyle = ghost ? 'rgba(40,90,150,.16)' : 'rgba(30,40,60,.24)';
+  c.beginPath(); c.ellipse(X, Y + r * .8, r * (.74 - lift / r * .22), r * .2, 0, 0, Math.PI * 2); c.fill();
+  c.translate(X, Y + r * .8 - lift);
+  c.lineJoin = 'round'; c.lineCap = 'round';
   // feet
   const fa = Math.sin(ph * Math.PI / 4) * ww;
-  c.fillStyle = dk;
-  for (const sd of [-1, 1]) { c.beginPath(); c.ellipse(sd * r * .38, -r * .06 - Math.max(0, fa * sd) * r * .14, r * .2, r * .13, 0, 0, Math.PI * 2); c.fill(); }
-  // body
+  if (!ghost) for (const sd of [-1, 1]) {
+    c.fillStyle = dk; c.strokeStyle = line; c.lineWidth = lw;
+    c.beginPath(); c.ellipse(sd * r * .4, -r * .07 - Math.max(0, fa * sd) * r * .16, r * .22, r * .14, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+  }
   c.scale(1 + sq, 1 - sq);
-  const bodyY = -r * .78;
-  const g = c.createRadialGradient(-r * .35, bodyY - r * .45, r * .1, 0, bodyY, r * 1.05);
-  g.addColorStop(0, shade(col, .35)); g.addColorStop(.6, col); g.addColorStop(1, shade(col, -.12));
-  c.fillStyle = g; c.beginPath();
-  c.moveTo(-r * .92, bodyY + r * .2);
-  c.bezierCurveTo(-r * .98, bodyY - r * .75, -r * .5, bodyY - r * .98, 0, bodyY - r * .98);
-  c.bezierCurveTo(r * .5, bodyY - r * .98, r * .98, bodyY - r * .75, r * .92, bodyY + r * .2);
-  c.bezierCurveTo(r * .88, bodyY + r * .72, r * .5, bodyY + r * .8, 0, bodyY + r * .8);
-  c.bezierCurveTo(-r * .5, bodyY + r * .8, -r * .88, bodyY + r * .72, -r * .92, bodyY + r * .2);
-  c.fill();
-  // belly
-  c.fillStyle = shade(col, .45, .55); c.beginPath(); c.ellipse(0, bodyY + r * .42, r * .5, r * .3, 0, 0, Math.PI * 2); c.fill();
+  const by = -r * .82;
+  // arms (behind the body edge), swinging against the feet
+  for (const sd of [-1, 1]) {
+    c.save(); c.translate(sd * r * .86, by + r * .22); c.rotate(sd * (.5 + fa * sd * .5 + (o.expr === 'cheer' ? -1.3 : 0)));
+    c.fillStyle = ghost ? shade(col, .1) : shade(col, -.06); c.strokeStyle = line; c.lineWidth = lw;
+    c.beginPath(); c.ellipse(0, r * .12, r * .13, r * .22, 0, 0, Math.PI * 2); c.fill(); c.stroke(); c.restore();
+  }
+  // body with sticker outline
+  blobPath(c, r, by, ghost, T, seed);
+  const g = c.createRadialGradient(-r * .3, by - r * .5, r * .1, 0, by, r * 1.1);
+  if (ghost) { g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(.45, shade(col, .2, .92)); g.addColorStop(1, shade(col, -.08, .78)); }
+  else { g.addColorStop(0, shade(col, .38)); g.addColorStop(.55, col); g.addColorStop(1, shade(col, -.16)); }
+  c.fillStyle = g; c.fill();
+  c.strokeStyle = line; c.lineWidth = lw; c.stroke();
+  // belly + gloss
+  if (!ghost) { c.fillStyle = shade(col, .55, .6); c.beginPath(); c.ellipse(0, by + r * .44, r * .48, r * .28, 0, 0, Math.PI * 2); c.fill(); }
+  c.fillStyle = 'rgba(255,255,255,.6)'; c.beginPath(); c.ellipse(-r * .48, by - r * .5, r * .2, r * .11, -.7, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.arc(-r * .24, by - r * .7, r * .05, 0, Math.PI * 2); c.fill();
   // sprout
-  c.save(); c.translate(0, bodyY - r * .95); c.rotate(Math.sin(T * 3 + (o.seed || 0)) * .15 - dir[0] * .2 * ww);
-  c.strokeStyle = o.sprout || '#3aa65a'; c.lineWidth = r * .09; c.lineCap = 'round'; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -r * .22); c.stroke();
-  c.fillStyle = o.sprout || '#4cc46d';
-  for (const sd of [-1, 1]) { c.save(); c.translate(0, -r * .22); c.rotate(sd * .7); c.beginPath(); c.ellipse(sd * r * .14, 0, r * .16, r * .08, 0, 0, Math.PI * 2); c.fill(); c.restore(); }
+  c.save(); c.translate(0, by - r * .97); c.rotate(Math.sin(T * 3 + seed) * .14 - dir[0] * .25 * ww);
+  c.strokeStyle = line; c.lineWidth = lw; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -r * .24); c.stroke();
+  for (const sd of [-1, 1]) {
+    c.save(); c.translate(0, -r * .24); c.rotate(sd * .55);
+    c.fillStyle = o.sprout || '#5fd27a'; c.strokeStyle = line; c.lineWidth = lw * .9;
+    c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(sd * r * .18, -r * .17, sd * r * .36, 0); c.quadraticCurveTo(sd * r * .18, r * .1, 0, 0); c.fill(); c.stroke();
+    c.restore();
+  }
   c.restore();
   // face: shifts toward where it looks
   const fx = dir[0] * r * .16, fy = -dir[1] * r * .1 - (dir[1] > 0 ? r * .08 : 0);
-  c.translate(fx, bodyY + fy);
+  c.translate(fx, by + fy);
   const ex = r * .34, ey = -r * .1, ink = '#26324a', expr = o.expr || 'calm';
-  // cheeks
-  c.fillStyle = 'rgba(255,110,130,.45)';
-  for (const sd of [-1, 1]) { c.beginPath(); c.ellipse(sd * r * .58, r * .16, r * .14, r * .08, 0, 0, Math.PI * 2); c.fill(); }
-  c.strokeStyle = ink; c.lineCap = 'round'; c.lineJoin = 'round'; c.lineWidth = r * .09;
+  c.fillStyle = ghost ? 'rgba(255,140,190,.35)' : 'rgba(255,90,120,.42)';
+  for (const sd of [-1, 1]) { c.beginPath(); c.ellipse(sd * r * .6, r * .15, r * .14, r * .08, 0, 0, Math.PI * 2); c.fill(); }
+  c.strokeStyle = ghost ? '#2d4f7a' : ink; c.lineWidth = r * .085;
   const closed = o.sleep || (o.blink && expr === 'calm');
   if (closed) {
     for (const sd of [-1, 1]) { c.beginPath(); c.arc(sd * ex, ey - r * .02, r * .13, .15 * Math.PI, .85 * Math.PI); c.stroke(); }
@@ -241,21 +294,22 @@ function drawBlob(c, X, Y, r, o) {
     const big = expr === 'oops' ? 1.12 : 1, pr = expr === 'oops' ? .55 : 1;
     const px = dir[0] * r * .07, py = -dir[1] * r * .06;
     for (const sd of [-1, 1]) {
-      c.fillStyle = '#fff'; c.beginPath(); c.ellipse(sd * ex, ey, r * .22 * big, r * .26 * big, 0, 0, Math.PI * 2); c.fill();
-      c.fillStyle = ink; c.beginPath(); c.ellipse(sd * ex + px, ey + py + r * .02, r * .13 * pr, r * .15 * pr, 0, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#fff'; c.beginPath(); c.arc(sd * ex + px - r * .05, ey + py - r * .05, r * .045, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#fff'; c.strokeStyle = ink; c.lineWidth = r * .04;
+      c.beginPath(); c.ellipse(sd * ex, ey, r * .24 * big, r * .28 * big, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+      c.fillStyle = ink; c.beginPath(); c.ellipse(sd * ex + px, ey + py + r * .03, r * .15 * pr, r * .17 * pr, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(sd * ex + px - r * .055, ey + py - r * .04, r * .055, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(sd * ex + px + r * .05, ey + py + r * .08, r * .025, 0, Math.PI * 2); c.fill();
     }
     if (expr === 'worry') {
-      c.lineWidth = r * .07;
-      for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(sd * (ex - r * .16), ey - r * .36); c.lineTo(sd * (ex + r * .14), ey - r * .28); c.stroke(); }
+      c.strokeStyle = ink; c.lineWidth = r * .07;
+      for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(sd * (ex - r * .16), ey - r * .38); c.lineTo(sd * (ex + r * .14), ey - r * .3); c.stroke(); }
     }
   }
-  // mouth
-  c.lineWidth = r * .075;
-  if (expr === 'cheer') { c.fillStyle = '#c43d4b'; c.beginPath(); c.moveTo(-r * .2, r * .16); c.quadraticCurveTo(0, r * .5, r * .2, r * .16); c.closePath(); c.fill(); }
+  c.strokeStyle = ghost ? '#2d4f7a' : ink; c.lineWidth = r * .075;
+  if (expr === 'cheer') { c.fillStyle = '#c43d4b'; c.beginPath(); c.moveTo(-r * .2, r * .16); c.quadraticCurveTo(0, r * .52, r * .2, r * .16); c.closePath(); c.fill(); c.fillStyle = '#ff8a9a'; c.beginPath(); c.ellipse(0, r * .32, r * .08, r * .05, 0, 0, Math.PI * 2); c.fill(); }
   else if (expr === 'oops') { c.fillStyle = ink; c.beginPath(); c.ellipse(0, r * .24, r * .07, r * .09, 0, 0, Math.PI * 2); c.fill(); }
   else if (expr === 'worry') { c.beginPath(); c.moveTo(-r * .1, r * .27); c.quadraticCurveTo(0, r * .2, r * .1, r * .27); c.stroke(); }
-  else if (!o.sleep) { c.beginPath(); c.arc(0, r * .14, r * .11, .2 * Math.PI, .8 * Math.PI); c.stroke(); }
+  else { c.beginPath(); c.arc(0, r * .13, r * .1, .2 * Math.PI, .8 * Math.PI); c.stroke(); }
   c.restore();
 }
 
@@ -281,9 +335,9 @@ function drawEnt(e, T) {
   const [X, Y] = scr(e.x, e.y), bd = E.DIRS[e.face] || [0, 0], b = e.bumpOff || 0;
   const r = B.s * (e.ghost ? .34 : .38) * (.6 + .4 * easeOutBack(clamp(e.pop, 0, 1)));
   drawBlob(ctx, X + bd[0] * b * B.s, Y - bd[1] * b * B.s - r * .55, r, {
-    col: e.ghost ? COL.echo : COL.hero, dk: e.ghost ? COL.echoDk : COL.heroDk, sprout: e.ghost ? '#bfe6ff' : null,
-    alpha: e.ghost ? .82 : 1, T, face: e.face, walkPh: e.walkPh, walkW: e.walkW, squash: e.sq, jump: e.jump,
-    expr: e.expr, blink: e.blinkT > 0, sleep: e.ghost, seed: e.i * 1.7,
+    col: e.ghost ? COL.echo : COL.hero, dk: e.ghost ? COL.echoDk : COL.heroDk, sprout: e.ghost ? '#d6f0ff' : null, ghost: e.ghost,
+    alpha: e.ghost ? .9 : 1, T, face: e.face, walkPh: e.walkPh, walkW: e.walkW, squash: e.sq, jump: e.jump,
+    expr: e.ghost ? 'calm' : e.expr, blink: e.blinkT > 0, sleep: e.ghost, seed: e.i * 1.7,
   });
 }
 function updEnt(e, dt) {
@@ -354,50 +408,107 @@ function drawParts(dt) {
   }
 }
 
-// ---------------- sound: quiet soft bells ----------------
-let AC = null, master = null, verb = null, musicT = 2;
+// ---------------- sound: soft wooden marimba / kalimba, all synthesized (no files) ----------------
+// Music: a slow, quiet kalimba loop over C – Am – F – G, with a soft low note per bar. Effects: pops, plinks, whooshes.
+let AC = null, master = null, sfxBus = null, musBus = null, verb = null, noiseBuf = null, nextBeat = 0, beat = 0;
 function audioStart() {
-  if (AC) return;
+  if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
   try {
     AC = new (window.AudioContext || window.webkitAudioContext)();
-    master = AC.createGain(); master.gain.value = S.muted ? 0 : .55; master.connect(AC.destination);
-    verb = AC.createDelay(1); verb.delayTime.value = .42;
-    const fb = AC.createGain(); fb.gain.value = .32; const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800;
-    verb.connect(lp); lp.connect(fb); fb.connect(verb); lp.connect(master);
+    master = AC.createGain(); master.gain.value = S.muted ? 0 : .8;
+    const comp = AC.createDynamicsCompressor(); master.connect(comp); comp.connect(AC.destination);
+    sfxBus = AC.createGain(); sfxBus.gain.value = 1; sfxBus.connect(master);
+    musBus = AC.createGain(); musBus.gain.value = .55; musBus.connect(master);
+    verb = AC.createDelay(1); verb.delayTime.value = .33;
+    const fb = AC.createGain(); fb.gain.value = .28; const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200;
+    const wet = AC.createGain(); wet.gain.value = .35;
+    verb.connect(lp); lp.connect(fb); fb.connect(verb); lp.connect(wet); wet.connect(master);
+    noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let k = 0; k < d.length; k++) d[k] = Math.random() * 2 - 1;
+    nextBeat = AC.currentTime + .3;
   } catch (e) { AC = null; }
 }
-function bell(semi, dur, vol, delay = 0) {
-  if (!AC) return;
-  const t = AC.currentTime + delay, hz = 440 * Math.pow(2, (semi - 9) / 12);
-  const g = AC.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .03); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
-  for (const [m, v] of [[1, 1], [2, .18]]) { const o = AC.createOscillator(); o.type = 'sine'; o.frequency.value = hz * m; const og = AC.createGain(); og.gain.value = v; o.connect(og); og.connect(g); o.start(t); o.stop(t + dur + .05); }
-  g.connect(master); g.connect(verb);
+const hz = semi => 440 * Math.pow(2, (semi - 9) / 12);   // semi 0 = C4
+function env(t, a, d, vol) { const g = AC.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + a); g.gain.exponentialRampToValueAtTime(.0001, t + a + d); return g; }
+function osc(type, f, t, dur, out, f2) {
+  const o = AC.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t);
+  if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  o.connect(out); o.start(t); o.stop(t + dur + .05); return o;
 }
-const PENTA = [0, 2, 4, 7, 9, 12, 14, 16];
-function music(dt) {
+// wooden bar: fundamental + a quickly fading 4th partial
+function marimba(semi, t, vol, bus = sfxBus, wet = .25) {
+  if (!AC) return;
+  const g = env(t, .004, .55, vol), g2 = env(t, .002, .08, vol * .35);
+  osc('sine', hz(semi), t, .6, g); osc('sine', hz(semi) * 4, t, .1, g2);
+  g.connect(bus); g2.connect(bus); if (wet) { const w = AC.createGain(); w.gain.value = wet; g.connect(w); w.connect(verb); }
+}
+// kalimba tine: long soft ring with a slightly inharmonic overtone
+function kalimba(semi, t, vol, bus = sfxBus) {
+  if (!AC) return;
+  const g = env(t, .006, 1.4, vol), g2 = env(t, .003, .25, vol * .22);
+  osc('sine', hz(semi), t, 1.5, g); osc('sine', hz(semi) * 5.4, t, .3, g2);
+  g.connect(bus); g2.connect(bus); const w = AC.createGain(); w.gain.value = .5; g.connect(w); w.connect(verb);
+}
+// pitch-gliding pop ("bloop")
+function pop(f1, f2, t, dur, vol, type = 'sine') { if (!AC) return; const g = env(t, .004, dur, vol); osc(type, f1, t, dur, g, f2); g.connect(sfxBus); }
+// filtered noise sweep (whoosh)
+function whoosh(f1, f2, t, dur, vol) {
+  if (!AC) return;
+  const s = AC.createBufferSource(); s.buffer = noiseBuf; const bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
+  bp.frequency.setValueAtTime(f1, t); bp.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  const g = AC.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + dur * .4); g.gain.linearRampToValueAtTime(0, t + dur);
+  s.connect(bp); bp.connect(g); g.connect(sfxBus); s.start(t); s.stop(t + dur + .05);
+}
+function thud(t, vol) {
+  if (!AC) return;
+  const s = AC.createBufferSource(); s.buffer = noiseBuf; const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 400;
+  const g = env(t, .002, .09, vol); s.connect(lp); lp.connect(g); g.connect(sfxBus); s.start(t); s.stop(t + .15);
+}
+// music
+const CHORDS = [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]];   // C, Am, F, G (as offsets from C)
+const BPM = 76;
+function music() {
   if (!AC || S.muted) return;
-  musicT -= dt;
-  if (musicT <= 0) {
-    musicT = 3.2 + Math.random() * 3.5;
-    const root = 12 + PENTA[Math.floor(Math.random() * PENTA.length)];
-    bell(root, 3.5, .018);
-    if (Math.random() < .45) bell(root + (Math.random() < .5 ? 7 : 4), 3.2, .012, .55 + Math.random() * .4);
+  const spb = 60 / BPM;
+  if (nextBeat < AC.currentTime) nextBeat = AC.currentTime + .05;
+  while (nextBeat < AC.currentTime + .25) {
+    const bar = Math.floor(beat / 8) % 4, b = beat % 8, ch = CHORDS[bar], t = nextBeat;
+    if (b === 0) { const g = env(t, .08, 2.6, .05), g2 = env(t, .3, 2.2, .008); osc('sine', hz(ch[0] - 12), t, 2.8, g); osc('triangle', hz(ch[0]), t, 2.6, g2); g.connect(musBus); g2.connect(musBus); }
+    // a gentle half-random arpeggio on eighth notes; leaves space
+    const pat = [1, 0, .6, .3, .9, 0, .5, .2];
+    if (Math.random() < pat[b]) {
+      const note = ch[(b + bar) % 3] + 12 + (b >= 4 && Math.random() < .4 ? 12 : 0);
+      kalimba(note, t + (Math.random() - .5) * .015, .028 + Math.random() * .01, musBus);
+    }
+    beat++; nextBeat += spb / 2;
   }
 }
-function tone(semi, dur, vol) { bell(semi, dur, vol * .8); }
+function tone(semi, dur, vol) { if (AC) marimba(semi + 12, AC.currentTime, vol * 1.2); }
+const now = () => AC.currentTime;
+const STEPS = [0, 2, 4, 7, 9, 12, 9, 7];
 const SFX = {
-  step: t => bell(PENTA[t % PENTA.length] + 24, .35, .012),
-  wait: () => bell(19, .4, .012),
-  bump: () => bell(-5, .25, .03),
-  door: open => { bell(open ? 16 : 9, 1.1, .02); bell(open ? 23 : 4, 1.2, .012, .08); },
-  plate: () => bell(19, .7, .018),
-  echo: () => { [12, 16, 19, 24].forEach((s, k) => bell(s, 1.6, .016, k * .09)); },
-  rewind: () => { for (let k = 0; k < 4; k++) bell(24 - k * 3, .3, .01, k * .05); },
-  win: () => { [0, 4, 7, 12, 16, 19].forEach((s, k) => bell(s + 12, 2, .02, k * .1)); },
-  hint: () => bell(21, 1, .016),
+  step: t => { if (!AC) return; marimba(STEPS[t % STEPS.length] + 24, now(), .07, sfxBus, .1); },
+  wait: () => { if (!AC) return; marimba(31, now(), .045, sfxBus, .1); marimba(26, now() + .11, .035, sfxBus, .1); },
+  bump: () => { if (!AC) return; pop(190, 75, now(), .16, .22); thud(now(), .2); },
+  door: open => {
+    if (!AC) return; const t = now();
+    if (open) { pop(300, 700, t, .14, .1); [24, 28, 31].forEach((s, k) => marimba(s, t + .05 + k * .06, .06)); }
+    else { pop(520, 200, t, .16, .09); marimba(19, t + .08, .05); }
+  },
+  plate: () => { if (!AC) return; pop(700, 1100, now(), .05, .09, 'triangle'); kalimba(36, now() + .03, .05); },
+  echo: () => { if (!AC) return; const t = now(); whoosh(500, 3500, t, .55, .12); [24, 28, 31, 36, 40].forEach((s, k) => kalimba(s, t + .12 + k * .07, .05)); },
+  rewind: () => { if (!AC) return; const t = now(); whoosh(3000, 400, t, .45, .1); pop(900, 300, t, .4, .04); },
+  win: () => {
+    if (!AC) return; const t = now();
+    [12, 16, 19, 24, 28].forEach((s, k) => marimba(s + 12, t + k * .09, .09));
+    [28, 31, 36].forEach(s => kalimba(s + 12, t + .5, .05));
+    for (let k = 0; k < 6; k++) kalimba(40 + [0, 4, 7, 12][k % 4], t + .6 + k * .07, .025);
+  },
+  hint: () => { if (!AC) return; const t = now(); [31, 36, 40].forEach((s, k) => kalimba(s + 12, t + k * .08, .04)); },
+  tap: () => { if (!AC) return; pop(900, 600, now(), .04, .05, 'triangle'); },
 };
 const buzz = p => { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} };
-function setMuted(m) { S.muted = m; if (master) master.gain.value = m ? 0 : .55; $('bSound').classList.toggle('off', m); save(); }
+function setMuted(m) { S.muted = m; if (master) master.gain.value = m ? 0 : .8; $('bSound').classList.toggle('off', m); save(); }
 
 // ---------------- room flow (same rules as every other version) ----------------
 function loadRoom(n) {
@@ -408,9 +519,18 @@ function loadRoom(n) {
   recompute(); doorFx = S.R.doors.map(() => ({ open: 0, flash: 0 })); plateFx = S.R.plates.map(() => ({ on: 0 }));
   spawnEnts(); doorsUpdate(true); layout(); ui(); save();
   $('bHelp').classList.remove('pulse');
+  tip(S.R.tutorial ? TIPS[n - 1] : '');
   S.enterT = performance.now(); S.transT = 0;
   if (S.R.tutorial && n > 1 && !S.demoSeen[n] && S.started) { S.demoSeen[n] = 1; save(); setTimeout(() => startDemo(true), 900); }
 }
+const TIPS = [
+  'امشِ إلى النجمة — اسحب أو المس المكان',
+  'لما تخلص خطواتك يصير مشيك طيفًا يعيده. خلّ طيفك يقف على الدائرة وأنت تعبر الباب',
+  'طيف واحد يقدر يفتح أكثر من باب في طريقه',
+  'باب الساعة يبقى مفتوحًا ٣ خطوات بعد ما تنزل عن دائرته — اركض!',
+  'الدائرة المخططة عكس الباقي: تقفل بابها لما أحد يقف عليها',
+];
+function tip(t) { const el = $('tip'); el.textContent = t; el.classList.toggle('on', !!t); }
 function recompute() { S.states = E.run(S.R, S.echoes, S.acts); }
 function doAction(a, fromDemo) {
   if (S.busy || S.won || S.rewinding || (S.demo && !fromDemo)) return false;
@@ -468,7 +588,7 @@ function doorsUpdate(silent) {
 function endLoopAsEcho() {
   if (S.won || S.rewinding) return;
   S.echoes.push(E.pad(S.acts, S.R.L));
-  rewind(() => { S.acts = []; recompute(); spawnEnts(); const g = ents[S.echoes.length - 1]; g.pop = 0; doorsUpdate(true); ui(); SFX.echo(); toast('صدى جديد!'); });
+  rewind(() => { S.acts = []; recompute(); spawnEnts(); const g = ents[S.echoes.length - 1]; g.pop = 0; doorsUpdate(true); ui(); SFX.echo(); toast('طيف جديد!'); });
 }
 function retryLoop() { if (S.won || S.rewinding) return; rewind(() => { S.acts = []; recompute(); spawnEnts(); doorsUpdate(true); ui(); }); }
 function backLoop() {
@@ -503,10 +623,12 @@ function win() {
   SFX.win(); buzz([20, 40, 20]);
   { const q = scr(S.R.exit.x, S.R.exit.y); burst(q[0], q[1] - B.s * .3, ['#ffc21a', '#ff4f8b', '#2ec27e', '#8b5cf6', '#4f8ff7', '#ff8a3d'], 46, 300); }
   if (S.demo) { setTimeout(() => { stopDemo(); }, 900); return; }
-  S.solved++;
+  S.solved++; cheer();
   if (S.solved % 3 === 0 && S.help < MAX_HELP) { S.help++; setTimeout(() => toast('+١ مساعدة'), 500); }
   setTimeout(() => { S.transT = performance.now(); setTimeout(() => loadRoom(S.n + 1), 380); }, 1300);
 }
+const CHEERS = ['رائع!', 'أحسنت!', 'ممتاز!', 'كفو!', 'بطل!'];
+function cheer() { const el = $('cheer'); el.textContent = CHEERS[S.solved % CHEERS.length]; el.classList.remove('on'); void el.offsetWidth; el.classList.add('on'); }
 function walkTo(c) {
   const me = cur()[S.echoes.length];
   if (c.x === me.x && c.y === me.y) { S.walk = ['W']; pump(); return; }
@@ -522,8 +644,8 @@ function walkTo(c) {
 
 // ---------------- one help button: hint → hold a plate for you → watch the solution ----------------
 const HELP = [
-  { lb: 'تلميح', ic: '<svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>' },
-  { lb: 'تثبيت', ic: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/></svg>' },
+  { lb: 'تلميح', ic: '<svg viewBox="0 0 24 24"><path class="f" d="M12 2.5a6.8 6.8 0 0 0-4 12.3c.6.5 1 1.2 1 2V17h6v-.2c0-.8.4-1.5 1-2A6.8 6.8 0 0 0 12 2.5z"/><path d="M9.5 20h5"/></svg>' },
+  { lb: 'تثبيت', ic: '<svg viewBox="0 0 24 24"><path class="f" d="M12 4c3.6 0 6 2.8 6 7.4 0 3-2.4 4.6-6 4.6s-6-1.6-6-4.6C6 6.8 8.4 4 12 4z"/><path d="M4 20h16"/></svg>' },
   { lb: 'الحل', ic: '<svg viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>' },
 ];
 function useHelp() { if (S.R.tutorial) return true; if (S.help <= 0) { SFX.bump(); toast('حل ٣ مراحل لتحصل على مساعدة'); return false; } S.help--; ui(); return true; }
@@ -599,6 +721,7 @@ function ui() {
 // ---------------- input: swipe to step, tap a cell to walk there ----------------
 let touch = null;
 cv.addEventListener('pointerdown', e => {
+  if (S.started) audioStart();
   touch = { x: e.clientX, y: e.clientY };
   if (!S.R) return;
   const c = cellAt(e.clientX, e.clientY), d = E.doorAt(S.R, c.x, c.y);
@@ -621,10 +744,10 @@ window.addEventListener('keydown', e => {
   if (k && S.started) { e.preventDefault(); S.walk = []; doAction(k); }
   if (e.key === 'z' || e.key === 'Backspace') undo();
 });
-$('bWait').onclick = () => { S.walk = []; doAction('W'); };
-$('bUndo').onclick = undo;
-$('bBack').onclick = backLoop;
-$('bHelp').onclick = pressHelp;
+$('bWait').onclick = () => { audioStart(); S.walk = []; doAction('W'); };
+$('bUndo').onclick = () => { audioStart(); SFX.tap(); undo(); };
+$('bBack').onclick = () => { audioStart(); SFX.tap(); backLoop(); };
+$('bHelp').onclick = () => { audioStart(); SFX.tap(); pressHelp(); };
 $('bSound').onclick = () => { audioStart(); setMuted(!S.muted); };
 function begin() {
   if (S.started) return;
@@ -648,7 +771,7 @@ function frame(now) {
   music(dt);
 
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.globalAlpha = 1;
-  ctx.fillStyle = COL.page; ctx.fillRect(0, 0, VW, VH);
+  drawBg();
   const glow = ctx.createRadialGradient(VW / 2, VH * .45, 0, VW / 2, VH * .45, Math.max(VW, VH) * .7);
   glow.addColorStop(0, 'rgba(255,255,255,.55)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = glow; ctx.fillRect(0, 0, VW, VH);
@@ -677,10 +800,30 @@ function frame(now) {
     tctx.setTransform(1, 0, 0, 1, 0, 0); tctx.clearRect(0, 0, 360, 360);
     const b = Math.abs(Math.sin(T * 2.2));
     drawBlob(tctx, 180, 215 - b * 18, 110, { col: COL.hero, dk: COL.heroDk, T, face: 'D', expr: b > .9 ? 'happy' : 'calm', blink: (T % 3.3) < .13, squash: (1 - b) * .08, seed: 0 });
-    drawBlob(tctx, 70, 260, 50, { col: COL.echo, dk: COL.echoDk, sprout: '#bfe6ff', alpha: .82, T, face: 'D', sleep: true, seed: 2 });
-    drawBlob(tctx, 295, 268, 44, { col: COL.echo, dk: COL.echoDk, sprout: '#bfe6ff', alpha: .82, T, face: 'D', sleep: true, seed: 4 });
+    drawBlob(tctx, 70, 260, 50, { col: COL.echo, dk: COL.echoDk, sprout: '#d6f0ff', alpha: .9, ghost: true, T, face: 'D', sleep: true, seed: 2 });
+    drawBlob(tctx, 295, 268, 44, { col: COL.echo, dk: COL.echoDk, sprout: '#d6f0ff', alpha: .9, ghost: true, T, face: 'D', sleep: true, seed: 4 });
   }
   requestAnimationFrame(frame);
+}
+let bgLayer = null;
+function drawBg() {
+  if (!bgLayer || bgLayer.width !== cv.width || bgLayer.height !== cv.height) {
+    const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height;
+    const g = c.getContext('2d'); g.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const lg = g.createLinearGradient(0, 0, 0, VH); lg.addColorStop(0, '#e6ecf4'); lg.addColorStop(1, '#d5dde9');
+    g.fillStyle = lg; g.fillRect(0, 0, VW, VH);
+    // tiny scattered sparkles and rings, very faint
+    let sd = 7; const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+    for (let y = 0; y < VH + 40; y += 46) for (let x = (y / 46 % 2) * 23; x < VW + 40; x += 46) {
+      const k = rnd(); g.save(); g.translate(x, y); g.rotate(rnd() * 3);
+      if (k < .5) { g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.arc(0, 0, 2.2, 0, Math.PI * 2); g.fill(); }
+      else if (k < .75) { g.strokeStyle = 'rgba(140,160,190,.16)'; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, 5, 0, Math.PI * 2); g.stroke(); }
+      else { g.strokeStyle = 'rgba(140,160,190,.14)'; g.lineWidth = 2; g.lineCap = 'round'; g.beginPath(); g.moveTo(-4, 0); g.lineTo(4, 0); g.moveTo(0, -4); g.lineTo(0, 4); g.stroke(); }
+      g.restore();
+    }
+    bgLayer = c;
+  }
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(bgLayer, 0, 0); ctx.restore();
 }
 function drawTopScaled(sc, cx, cy) {
   if (!topLayer) buildTop();

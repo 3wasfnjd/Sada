@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>صدى</title>
+<title>طيف</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="theme-color" content="#dfe6ee">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@500;700;800&display=swap">
 <style>
-/* صدى — mobile, casual clean look: light grey-blue page, white raised board, slate floor, bright cute blobs.
+/* طيف — mobile, casual clean look: light grey-blue page, white raised board, slate floor, bright cute blobs.
    One screen: top bar (level badge), the board, three big buttons. */
 :root {
   --page: #dfe6ee;
@@ -44,6 +44,7 @@ button { font-family: inherit; }
 }
 .round:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--blueDk); }
 .round svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+svg .f { fill: currentColor; stroke-width: 1.2; }
 .round.off .w, .round .x { display: none; }
 .round.off .x { display: inline; }
 .round.dim { opacity: .45; }
@@ -58,7 +59,8 @@ button { font-family: inherit; }
   transition: color .2s, background .2s;
 }
 #steps.low { background: #ffe3dc; color: #e2553a; }
-#steps svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; }
+#steps svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 0; color: var(--purple); }
+#steps.low svg { color: #e2553a; }
 #echoes {
   background: #fff; border-radius: 99px; box-shadow: 0 3px 0 var(--lip); padding: 6px 10px; display: flex; gap: 5px; align-items: center;
 }
@@ -78,7 +80,8 @@ button { font-family: inherit; }
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; transition: transform .1s, box-shadow .1s, opacity .2s;
 }
 .big:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--lip); }
-.big .ic { width: 40px; height: 40px; border-radius: 13px; display: grid; place-items: center; color: #fff; }
+.big .ic { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; color: #fff; box-shadow: inset 0 -3px 0 #0000001f, inset 0 2px 0 #ffffff55; }
+.big .ic svg { filter: drop-shadow(0 1.5px 0 #00000026); }
 .big .ic svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .big b { font-size: 12px; font-weight: 700; line-height: 1.1; color: var(--soft); }
 #bWait .ic { background: linear-gradient(#5fd3a0, #2fb47c); }
@@ -95,6 +98,20 @@ button { font-family: inherit; }
 @keyframes pulse { 50% { transform: translateY(-4px) scale(1.06); } }
 .big:focus-visible, .round:focus-visible { outline: 3px solid var(--purple); outline-offset: 3px; }
 
+#tip {
+  position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 116px); transform: translate(-50%, 6px); width: min(340px, calc(100% - 40px));
+  background: #33405aee; color: #fff; font-weight: 600; font-size: 15px; line-height: 1.45; text-align: center; padding: 8px 14px 7px; border-radius: 14px;
+  opacity: 0; transition: opacity .35s, transform .35s; pointer-events: none; box-sizing: border-box;
+}
+#tip.on { opacity: 1; transform: translate(-50%, 0); }
+#cheer {
+  position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%) scale(.3); opacity: 0; pointer-events: none;
+  font-size: 56px; font-weight: 800; color: #fff; -webkit-text-stroke: 7px var(--purple); paint-order: stroke fill;
+  text-shadow: 0 6px 0 var(--purpleDk), 0 10px 20px #6a3fd655; white-space: nowrap;
+}
+#cheer.on { animation: cheer 1.5s cubic-bezier(.2, 1.6, .4, 1) forwards; }
+@keyframes cheer { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.3) rotate(-8deg); } 18% { opacity: 1; transform: translate(-50%, -50%) scale(1.08) rotate(3deg); }
+  30% { transform: translate(-50%, -50%) scale(1) rotate(0); } 80% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -62%) scale(.9); } }
 #toast {
   position: fixed; top: 38%; left: 50%; transform: translate(-50%, -50%) scale(.8); opacity: 0; pointer-events: none;
   background: #fff; color: var(--ink); font-weight: 800; font-size: 20px; padding: 10px 20px; border-radius: 16px; box-shadow: 0 5px 0 var(--lip);
@@ -104,11 +121,12 @@ button { font-family: inherit; }
 
 /* ---------- title ---------- */
 #title {
-  position: fixed; inset: 0; background: var(--page); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  position: fixed; inset: 0; background: radial-gradient(circle at 50% 38%, #fff 0, #e6ecf4 45%, #d5dde9 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   cursor: pointer; z-index: 5;
 }
 #tcv { width: 180px; height: 180px; }
-#title h1 { margin: 0; font-size: 72px; line-height: 1; font-weight: 800; color: var(--ink); letter-spacing: 0; }
+#title h1 { margin: 0; font-size: 84px; line-height: 1; font-weight: 800; color: #fff; -webkit-text-stroke: 10px var(--ink); paint-order: stroke fill; text-shadow: 0 7px 0 #1f2a40; letter-spacing: 0; }
+#title .by { font-size: 14px; font-weight: 700; color: var(--soft); letter-spacing: .5px; margin-top: 30px; }
 #title p { margin: 4px 24px 26px; font-size: 18px; color: var(--soft); text-align: center; font-weight: 500; }
 #play {
   border: 0; cursor: pointer; font-size: 26px; font-weight: 800; color: #fff; padding: 12px 54px 10px; border-radius: 20px;
@@ -123,17 +141,17 @@ button { font-family: inherit; }
 <header id="top">
   <div class="side">
     <button class="round" id="bBack" aria-label="ارجع لبداية الدورة">
-      <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M5.2 13.5A7 7 0 1 0 7.5 6.8"/><path class="f" d="M3.2 4.6 4.4 11l5.8-3z"/></svg>
     </button>
     <button class="round" id="bSound" aria-label="الصوت">
-      <svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="w" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="x" d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
+      <svg viewBox="0 0 24 24"><path class="f" d="M3.5 9h3.8L12.5 4.8v14.4L7.3 15H3.5z"/><path class="w" d="M16 9a4 4 0 0 1 0 6M18.6 6.4a7.6 7.6 0 0 1 0 11.2"/><path class="x" d="M16 9.5l5 5M21 9.5l-5 5"/></svg>
     </button>
   </div>
   <div id="mid">
     <div id="level">مرحلة ١</div>
-    <div id="steps"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M10 2.5h4"/></svg><span id="stepsN">٨</span></div>
+    <div id="steps"><svg viewBox="0 0 24 24"><path class="f" d="M8.5 3c2 0 3 2.2 3 4.6S10.2 12 8.6 12 5.5 10 5.5 7.6 6.5 3 8.5 3zM6.4 13.5h4.2c.3 2-.6 3.8-2.1 3.8s-2.3-1.8-2.1-3.8zM15.5 7c2 0 3 2.2 3 4.6s-1.3 4.4-2.9 4.4-3.1-2-3.1-4.4S13.5 7 15.5 7zM13.4 17.5h4.2c.3 2-.6 3.8-2.1 3.8s-2.3-1.8-2.1-3.8z"/></svg><span id="stepsN">٨</span></div>
   </div>
-  <div class="side end"><div id="echoes" aria-label="الأصداء"></div></div>
+  <div class="side end"><div id="echoes" aria-label="الأطياف"></div></div>
 </header>
 
 <nav id="bar">
@@ -142,17 +160,20 @@ button { font-family: inherit; }
     <span class="ic" id="helpIc"></span><b id="helpLb">تلميح</b>
   </button>
   <button class="big" id="bUndo" aria-label="تراجع خطوة">
-    <span class="ic"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></span><b>تراجع</b>
+    <span class="ic"><svg viewBox="0 0 24 24"><path class="f" d="M10.5 3.5 3 9.5l7.5 6v-3.8h3.7a3.4 3.4 0 0 1 0 6.8H12v3.2h2.2a6.6 6.6 0 0 0 0-13.2h-3.7z"/></svg></span><b>تراجع</b>
   </button>
   <button class="big" id="bWait" aria-label="انتظر دورة">
-    <span class="ic"><svg viewBox="0 0 24 24"><path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9"/></svg></span><b>انتظر</b>
+    <span class="ic"><svg viewBox="0 0 24 24"><path d="M6 3h12M6 21h12"/><path class="f" d="M7.5 4.5h9c0 3.6-2.8 5.4-4.5 7.5-1.7-2.1-4.5-3.9-4.5-7.5zM12 13.4c1.3 1.6 3.8 3 4.3 6.1H7.7c.5-3.1 3-4.5 4.3-6.1z" opacity=".95"/></svg></span><b>انتظر</b>
   </button>
 </nav>
+<div id="tip" role="note"></div>
+<div id="cheer" aria-live="polite"></div>
 <div id="toast" role="status"></div>
 
 <div id="title" tabindex="0" role="button" aria-label="ابدأ">
   <canvas id="tcv" width="360" height="360"></canvas>
-  <h1>صدى</h1>
-  <p>تحرّك… وصداك يعيد حركتك ليساعدك</p>
+  <h1>طيف</h1>
+  <p>كل محاولة تترك طيفًا يعيد خطواتك… ويفتح لك الطريق</p>
   <button id="play">العب</button>
+  <div class="by">عبودين قيمز</div>
 </div>
