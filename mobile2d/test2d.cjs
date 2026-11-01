@@ -26,7 +26,7 @@ const path = require('path');
   console.log('demo on room 2', demoOk ? 'reached the exit' : 'DID NOT reach the exit');
   if (!demoOk) fails++;
   await p.waitForTimeout(1500);
-  await p.evaluate(() => { window.__sada.S.demoSeen = { 2: 1, 3: 1, 4: 1, 5: 1 }; });
+  await p.evaluate(() => { window.__sada.S.demoSeen = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 }; });
   for (let n = 1; n <= 9; n++) {
     await p.evaluate(n => { const s = window.__sada; if (s.S.demo) s.startDemo; s.loadRoom(n); }, n);
     await p.evaluate(() => { const s = window.__sada; if (s.S.demo) { clearInterval(s.S.demo.iv); s.S.demo = null; } });
@@ -53,7 +53,7 @@ const path = require('path');
   if (shots) await p.screenshot({ path: shots + '/hint7.png' });
   // expression sheet: the fox close up in each mood, plus an echo
   if (shots) {
-    await p.evaluate(() => { const s = window.__sada; s.S.demoSeen = { 2: 1, 3: 1, 4: 1, 5: 1 }; s.loadRoom(3); });
+    await p.evaluate(() => { const s = window.__sada; s.S.demoSeen = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 }; s.loadRoom(3); });
     await p.waitForTimeout(900);
     for (const ex of ['calm', 'happy', 'oops', 'worry', 'cheer']) {
       const box = await p.evaluate(ex => { const s = window.__sada, e = s.ents[s.ents.length - 1]; s.setExpr(e, ex, 9); e.blink = 9; e.blinkT = 0; const r = document.getElementById('cv').getBoundingClientRect(); return null; }, ex);

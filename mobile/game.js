@@ -31,8 +31,8 @@ const S = {
   started: false, muted: false,
 };
 const cur = () => S.states[S.states.length - 1];
-function save() { try { localStorage.setItem('sada2d', JSON.stringify({ n: S.n, runSeed: S.runSeed, help: S.help, solved: S.solved, demoSeen: S.demoSeen, muted: S.muted })); } catch (e) {} }
-function load() { try { const d = JSON.parse(localStorage.getItem('sada2d') || 'null'); if (d) Object.assign(S, d); } catch (e) {} if (!S.runSeed) S.runSeed = (Math.random() * 1e9) >>> 0; }
+function save() { try { localStorage.setItem('sada2d', JSON.stringify({ v: 2, n: S.n, runSeed: S.runSeed, help: S.help, solved: S.solved, demoSeen: S.demoSeen, muted: S.muted })); } catch (e) {} }
+function load() { try { const d = JSON.parse(localStorage.getItem('sada2d') || 'null'); if (d) { if (d.v !== 2) d.demoSeen = {}; Object.assign(S, d); } } catch (e) {} if (!S.runSeed) S.runSeed = (Math.random() * 1e9) >>> 0; }
 
 // ---------------- layout ----------------
 const cv = $('cv'), ctx = cv.getContext('2d');
@@ -511,9 +511,22 @@ const buzz = p => { try { navigator.vibrate && navigator.vibrate(p); } catch (e)
 function setMuted(m) { S.muted = m; if (master) master.gain.value = m ? 0 : .8; $('bSound').classList.toggle('off', m); save(); }
 
 // ---------------- room flow (same rules as every other version) ----------------
+// Opening rooms for this version: every one of them needs a طيف (checked: none can be solved alone).
+// rows top -> bottom; a/b hold door, A timed door, 1/2 their plates, y inverse plate (see logic.js fromMap)
+const TUT = [
+  { map: ['.E.', '#a#', '1.S'], tasks: [[0]] },                                   // a طيف holds the door
+  { map: ['E..', '#b#', '...', '#a#', '21S'], tasks: [[0, 1]] },                  // one طيف, two doors
+  { map: ['E...', '#b##', '....', '###A', '....', '1.2S'], tasks: [[0, 1]] },     // clock door: pass while it counts down
+  { map: ['E..', '#b#', 'y..', '#a#', '1.S'], tasks: [[0]] },                     // striped plate: keep off it
+];
+function roomFor(n, seed) {
+  if (n <= TUT.length) return E.fromMap(TUT[n - 1], n);
+  return E.generate(n - TUT.length, (seed * 1000003 + n * 7919) >>> 0);   // generated rooms always need طيف (verify rejects solo rooms)
+}
 function loadRoom(n) {
-  S.n = n; S.R = E.roomFor(n, S.runSeed);
-  if (!S.R) { S.runSeed++; S.R = E.roomFor(n, S.runSeed); }
+  if (S.demo) { clearInterval(S.demo.iv); S.demo = null; $('bHelp').classList.remove('armed'); }
+  S.n = n; S.R = roomFor(n, S.runSeed);
+  if (!S.R) { S.runSeed++; S.R = roomFor(n, S.runSeed); }
   S.echoes = []; S.acts = []; S.walk = []; S.won = false; S.busy = false; S.fails = 0; S.hs = 0; hint = null; hover = -1;
   S.R.pinned = [];
   recompute(); doorFx = S.R.doors.map(() => ({ open: 0, flash: 0 })); plateFx = S.R.plates.map(() => ({ on: 0 }));
@@ -521,15 +534,14 @@ function loadRoom(n) {
   $('bHelp').classList.remove('pulse');
   tip(S.R.tutorial ? TIPS[n - 1] : '');
   S.enterT = performance.now(); S.transT = 0;
-  if (S.R.tutorial && n > 1 && !S.demoSeen[n] && S.started) { S.demoSeen[n] = 1; save(); setTimeout(() => startDemo(true), 900); }
+  if (S.R.tutorial && !S.demoSeen[n] && S.started) { S.demoSeen[n] = 1; save(); setTimeout(() => startDemo(true), 900); }
 }
 const TIPS = [
-  'امشِ إلى النجمة — اسحب أو المس المكان',
-  'لما تخلص خطواتك يصير مشيك طيفًا يعيده. خلّ طيفك يقف على الدائرة وأنت تعبر الباب',
-  'طيف واحد يقدر يفتح أكثر من باب في طريقه',
-  'باب الساعة يبقى مفتوحًا ٣ خطوات بعد ما تنزل عن دائرته — اركض!',
-  'الدائرة المخططة عكس الباقي: تقفل بابها لما أحد يقف عليها',
-];
+  'امشِ لدائرة الباب وانتظر حتى تخلص خطواتك… مشيك يصير طيفًا يمسك الباب لك في الدورة الجاية',
+  'طيف واحد يقدر يفتح بابين: خلّه يمر على الدائرتين بالترتيب',
+  'باب الساعة يبقى مفتوحًا ٣ خطوات بعد ما ينزل الطيف عن دائرته — اعبره في وقته',
+  'الدائرة المخططة عكس الباقي: تقفل بابها لما أحد يقف عليها، فخلّ طيفك بعيد عنها',
+]
 function tip(t) { const el = $('tip'); el.textContent = t; el.classList.toggle('on', !!t); }
 function recompute() { S.states = E.run(S.R, S.echoes, S.acts); }
 function doAction(a, fromDemo) {
@@ -645,7 +657,7 @@ function walkTo(c) {
 // ---------------- one help button: hint → hold a plate for you → watch the solution ----------------
 const HELP = [
   { lb: 'تلميح', ic: '<svg viewBox="0 0 24 24"><path class="f" d="M12 2.5a6.8 6.8 0 0 0-4 12.3c.6.5 1 1.2 1 2V17h6v-.2c0-.8.4-1.5 1-2A6.8 6.8 0 0 0 12 2.5z"/><path d="M9.5 20h5"/></svg>' },
-  { lb: 'تثبيت', ic: '<svg viewBox="0 0 24 24"><path class="f" d="M12 4c3.6 0 6 2.8 6 7.4 0 3-2.4 4.6-6 4.6s-6-1.6-6-4.6C6 6.8 8.4 4 12 4z"/><path d="M4 20h16"/></svg>' },
+  { lb: 'حجر', ic: '<svg viewBox="0 0 24 24"><path class="f" d="M12 4c3.6 0 6 2.8 6 7.4 0 3-2.4 4.6-6 4.6s-6-1.6-6-4.6C6 6.8 8.4 4 12 4z"/><path d="M4 20h16"/></svg>' },
   { lb: 'الحل', ic: '<svg viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>' },
 ];
 function useHelp() { if (S.R.tutorial) return true; if (S.help <= 0) { SFX.bump(); toast('حل ٣ مراحل لتحصل على مساعدة'); return false; } S.help--; ui(); return true; }
@@ -675,7 +687,7 @@ function autoPin() {
   const plate = list.sort((a, b) => dist(b) - dist(a))[0];
   if (!useHelp()) return false;
   S.R.pinned.push({ x: plate.x, y: plate.y, t: performance.now() });
-  recompute(); doorsUpdate(false); ui(); tone(12, .6, .04); toast('صديق حجري يمسك اللوحة');
+  recompute(); doorsUpdate(false); ui(); tone(12, .6, .04); toast('حجر صغير يمسك الدائرة عنك');
   return true;
 }
 function drawPinned(T) {
@@ -753,7 +765,7 @@ function begin() {
   if (S.started) return;
   S.started = true; audioStart();
   const t = $('title'); t.style.transition = 'opacity .5s'; t.style.opacity = 0; setTimeout(() => (t.hidden = true), 500);
-  if (S.R.tutorial && S.n > 1 && !S.demoSeen[S.n]) { S.demoSeen[S.n] = 1; save(); setTimeout(() => startDemo(true), 700); }
+  if (S.R.tutorial && !S.demoSeen[S.n]) { S.demoSeen[S.n] = 1; save(); setTimeout(() => startDemo(true), 700); }
 }
 $('title').addEventListener('pointerup', begin);
 $('title').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') begin(); });
