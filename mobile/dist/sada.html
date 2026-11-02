@@ -889,7 +889,7 @@ function drawEnt(e, T) {
   const [X, Y] = scr(e.x, e.y), bd = E.DIRS[e.face] || [0, 0], b = e.bumpOff || 0;
   const r = B.s * (e.ghost ? .34 : .38) * (.6 + .4 * easeOutBack(clamp(e.pop, 0, 1)));
   // preview builds can swap in a character from the Aboden-Assets sketch pack (mobile/preview); the game build has none
-  if (window.SKETCH && SKETCH.cur !== 'blob' && SKETCH.drawEnt(ctx, e, X + bd[0] * b * B.s, Y - bd[1] * b * B.s + B.s * .3, B.s * (e.ghost ? .92 : 1) * (.6 + .4 * easeOutBack(clamp(e.pop, 0, 1))), T, [bd[0], -bd[1]], e.ghost ? 'calm' : e.expr)) return;
+  if (window.SKETCH && SKETCH.cur !== 'blob' && SKETCH.drawEnt(ctx, e, X + bd[0] * b * B.s, Y - bd[1] * b * B.s + B.s * .3, B.s * (.6 + .4 * easeOutBack(clamp(e.pop, 0, 1))), T, [bd[0], -bd[1]], e.ghost ? 'calm' : e.expr)) return;
   drawBlob(ctx, X + bd[0] * b * B.s, Y - bd[1] * b * B.s - r * .55, r, {
     col: e.ghost ? COL.echo : COL.hero, dk: e.ghost ? COL.echoDk : COL.heroDk, sprout: e.ghost ? '#d6f0ff' : null, ghost: e.ghost,
     alpha: e.ghost ? .9 : 1, T, face: e.face, walkPh: e.walkPh, walkW: e.walkW, squash: e.sq, jump: e.jump,
@@ -1339,10 +1339,11 @@ function frame(now) {
   music(dt);
 
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.globalAlpha = 1;
-  drawBg();
-  const glow = ctx.createRadialGradient(VW / 2, VH * .45, 0, VW / 2, VH * .45, Math.max(VW, VH) * .7);
+  const SK = window.SKETCH && SKETCH.paper;
+  if (SK) SKETCH.bg(ctx, VW, VH, DPR); else drawBg();
+  if (!SK) { const glow = ctx.createRadialGradient(VW / 2, VH * .45, 0, VW / 2, VH * .45, Math.max(VW, VH) * .7);
   glow.addColorStop(0, 'rgba(255,255,255,.55)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = glow; ctx.fillRect(0, 0, VW, VH);
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, VW, VH); }
 
   // room enter / leave: the board pops in and shrinks away
   const ent = clamp((now - (S.enterT || 0)) / 450, 0, 1), out = S.transT ? clamp((now - S.transT) / 380, 0, 1) : 0;
@@ -1350,11 +1351,14 @@ function frame(now) {
   const cx = B.ox + S.R.W * B.s / 2, cy = B.oy + S.R.H * B.s / 2;
   ctx.save(); ctx.globalAlpha = al;
   ctx.setTransform(DPR * sc, 0, 0, DPR * sc, DPR * (cx - cx * sc), DPR * (cy - cy * sc));
-  drawBoard(T);
-  S.R.plates.forEach((p, j) => drawPlate(j, T));
-  drawExit(T);
-  S.R.doors.forEach((d, i) => drawDoor(i, T));
-  drawTopScaled(sc, cx, cy);   // the raised white layer, under the same pop-in scale
+  if (SK) SKETCH.room(ctx, API, T);   // preview only: the same board drawn in pencil and watercolour
+  else {
+    drawBoard(T);
+    S.R.plates.forEach((p, j) => drawPlate(j, T));
+    drawExit(T);
+    S.R.doors.forEach((d, i) => drawDoor(i, T));
+    drawTopScaled(sc, cx, cy);
+  }   // the raised white layer, under the same pop-in scale
   drawHint(T);
   drawPinned(T);
   [...ents].sort((a, b) => b.y - a.y).forEach(e => drawEnt(e, T));
@@ -1393,6 +1397,7 @@ function drawBg() {
   }
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(bgLayer, 0, 0); ctx.restore();
 }
+const API = { S, B, cellX, cellY, scr, isWall, GLYPH, E, cur, plateHeld, get doorFx() { return doorFx; }, get plateFx() { return plateFx; }, get DPR() { return DPR; }, get VW() { return VW; }, get VH() { return VH; } };
 function drawTopScaled(sc, cx, cy) {
   if (!topLayer) buildTop();
   ctx.save();

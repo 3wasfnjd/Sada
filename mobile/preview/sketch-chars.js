@@ -210,7 +210,7 @@ function drawEnt(target, e, X, Y, cell, T, look, mood) {
   const S = 2 * cell, dpr = Math.min(devicePixelRatio || 1, 3), px = Math.round(S * dpr);
   if (buf.width !== px) { buf.width = px; buf.height = px; }
   bx.setTransform(1, 0, 0, 1, 0, 0); bx.clearRect(0, 0, px, px);
-  const k = (cell * 1.12 / H[c.name]) * dpr;
+  const k = (cell * (e.ghost ? .68 : .95) / H[c.name]) * dpr;
   bx.setTransform(k, 0, 0, k, px / 2, px * .82);
   ctx = bx;
   const a = { look: [look[0], look[1]], blink: e.ghost ? 1 : (e.blinkT > 0 ? 1 : 0), phase: e.i * 1.7, act: null };
@@ -232,5 +232,152 @@ function drawEnt(target, e, X, Y, cell, T, look, mood) {
   target.restore();
   return true;
 }
-return { cur: 'ثعلوب', names: Object.keys(H), drawEnt };
+
+// ---------------- the board in pencil and watercolour ----------------
+// Static parts (paper, floor washes, hatched walls, outlines) are cached in 3 boil variants (redrawn ~4 times a second
+// like hand-drawn animation on threes); plates, gates and the exit are drawn live.
+let bgC = null, bgKey = '', roomC = [], roomKey = '';
+function paper(target, VW, VH, DPR) {
+  const key = VW + 'x' + VH + '@' + DPR;
+  if (key !== bgKey) {
+    bgKey = key; bgC = document.createElement('canvas'); bgC.width = Math.round(VW * DPR); bgC.height = Math.round(VH * DPR);
+    const g = bgC.getContext('2d'); g.fillStyle = PAPER; g.fillRect(0, 0, bgC.width, bgC.height);
+    const img = g.getImageData(0, 0, bgC.width, bgC.height), d = img.data;
+    for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - .5) * 10; d[i] += n; d[i + 1] += n; d[i + 2] += n - 1; }
+    g.putImageData(img, 0, 0);
+  }
+  target.save(); target.setTransform(1, 0, 0, 1, 0, 0); target.drawImage(bgC, 0, 0); target.restore();
+}
+function glyphPts(G, cx, cy, r) {
+  if (!G.n) return ell(cx, cy, r, r, { over: .3, wob: .05 });
+  const p = []; for (let k = 0; k < G.n; k++) { const a = -Math.PI / 2 + (G.rot || (G.n === 4 ? Math.PI / 4 : 0)) + k * Math.PI * 2 / G.n, rr = r * (G.n === 3 ? 1.2 : 1.05); p.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr + (G.n === 3 ? r * .18 : 0)]); }
+  p.push(p[0]); return p;
+}
+// straight-edged helpers (the pack's path() rounds every corner, which turns rooms into ovals)
+function polyFill(p, col, a = 1) { ctx.globalAlpha = a; ctx.fillStyle = col; ctx.beginPath(); p.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1; }
+function rectJ(x, y, w, h, j) { return [[x + J(j), y + J(j)], [x + w + J(j), y + J(j)], [x + w + J(j), y + h + J(j)], [x + J(j), y + h + J(j)]]; }
+function washRect(x, y, w, h, col, a) { for (let k = 0; k < 3; k++) polyFill(rectJ(x, y, w, h, 1.5 + k * 1.2), col, a * (k ? .3 : .7)); }
+// a pencil stroke along a straight edge: two passes, a little wobble, a short overshoot at each end
+function pen(x1, y1, x2, y2, w = 2.2, a = .9) {
+  const L = Math.hypot(x2 - x1, y2 - y1) || 1, ux = (x2 - x1) / L, uy = (y2 - y1) / L, nx = -uy, ny = ux;
+  ctx.strokeStyle = INK; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (let k = 0; k < 2; k++) {
+    const o1 = 2 + R() * 5, o2 = 2 + R() * 5, b = J(1.2) + (k ? J(1.5) : 0);
+    ctx.globalAlpha = a * (k ? .45 : 1); ctx.lineWidth = w * (k ? .55 : 1) * (.85 + R() * .3);
+    ctx.beginPath(); ctx.moveTo(x1 - ux * o1 + nx * J(1), y1 - uy * o1 + ny * J(1));
+    ctx.quadraticCurveTo((x1 + x2) / 2 + nx * b, (y1 + y2) / 2 + ny * b, x2 + ux * o2 + nx * J(1), y2 + uy * o2 + ny * J(1)); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+function inkRect(x, y, w, h, o = {}) { const lw = o.w ?? 2.2, a = o.a ?? .9; pen(x, y, x + w, y, lw, a); pen(x + w, y, x + w, y + h, lw, a); pen(x + w, y + h, x, y + h, lw, a); pen(x, y + h, x, y, lw, a); }
+function hatchClip(clipFn, x0, y0, x1, y1, gap, a, w) {
+  ctx.save(); ctx.beginPath(); clipFn(); ctx.clip('evenodd');
+  ctx.strokeStyle = INK; ctx.lineWidth = w; ctx.globalAlpha = a; ctx.lineCap = 'round';
+  const L = (x1 - x0) + (y1 - y0);
+  for (let d = -L; d <= L; d += gap) { ctx.beginPath(); ctx.moveTo(x0 + d + J(1.5), y1 + J(1.5)); ctx.lineTo(x0 + d + (y1 - y0) * .9 + J(1.5), y0 + J(1.5)); ctx.stroke(); }
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+function buildRoom(A, v) {
+  const { S, B, cellX, cellY, isWall, DPR, VW, VH } = A, R = S.R, s = B.s;
+  const c = document.createElement('canvas'); c.width = Math.round(VW * DPR); c.height = Math.round(VH * DPR);
+  const g = c.getContext('2d'); g.setTransform(DPR, 0, 0, DPR, 0, 0); ctx = g; seed = 11 + v * 7919 + S.n * 31;
+  const pad = s * .32, x0 = B.ox - pad, y0 = B.oy - pad - B.h * .5, w = R.W * s + pad * 2, h = R.H * s + pad * 2;
+  const CX = x => cellX(x), CY = y => cellY(y) - B.h * .5;
+  // slab: warm wash, hatched everywhere that is not floor
+  washRect(x0, y0, w, h, '#eadfca', .75);
+  const floorRects = () => { for (let y = 0; y < R.H; y++) for (let x = 0; x < R.W; x++) if (!isWall(x, y)) ctx.rect(CX(x), CY(y), s, s); };
+  hatchClip(() => { ctx.rect(x0, y0, w, h); floorRects(); }, x0, y0, x0 + w, y0 + h, 4.6, .28, .9);   // even-odd below
+  // floor: paper first, then pooled blue washes
+  for (let y = 0; y < R.H; y++) for (let x = 0; x < R.W; x++) if (!isWall(x, y)) polyFill([[CX(x) - .5, CY(y) - .5], [CX(x) + s + .5, CY(y) - .5], [CX(x) + s + .5, CY(y) + s + .5], [CX(x) - .5, CY(y) + s + .5]], '#fbf9f4');
+  ctx.save(); ctx.beginPath(); floorRects(); ctx.clip();
+  for (let y = 0; y < R.H; y++) for (let x = 0; x < R.W; x++) if (!isWall(x, y)) washRect(CX(x) + 3, CY(y) + 3, s - 6, s - 6, (x + y) % 2 ? '#b9d1ea' : '#c7daee', .5);
+  // a wall's soft pencil shadow on the floor below it
+  for (let y = 0; y < R.H; y++) for (let x = 0; x < R.W; x++) if (!isWall(x, y) && isWall(x, y + 1)) polyFill([[CX(x), CY(y)], [CX(x) + s, CY(y)], [CX(x) + s, CY(y) + s * .13], [CX(x), CY(y) + s * .1]], '#8f877e', .18);
+  ctx.restore();
+  // pencil edges: merge each wall/floor border into long runs so lines only overshoot at the ends
+  const runs = [];
+  for (let y = 0; y < R.H; y++) {   // horizontal borders: top and bottom of floor cells
+    for (const side of [1, -1]) { let st = null;
+      for (let x = 0; x <= R.W; x++) { const on = x < R.W && !isWall(x, y) && isWall(x, y + side);
+        if (on && st === null) st = x; if (!on && st !== null) { const yy = side > 0 ? CY(y) : CY(y) + s; runs.push([CX(st), yy, CX(x), yy]); st = null; } } }
+  }
+  for (let x = 0; x < R.W; x++) {
+    for (const side of [-1, 1]) { let st = null;
+      for (let y = 0; y <= R.H; y++) { const on = y < R.H && !isWall(x, y) && isWall(x + side, y);
+        if (on && st === null) st = y; if (!on && st !== null) { const xx = side < 0 ? CX(x) : CX(x) + s; runs.push([xx, CY(y - 1), xx, CY(st) + s]); st = null; } } }
+  }
+  for (const [ax, ay, bx, by] of runs) pen(ax, ay, bx, by, 2.3);
+  // faint grid between floor cells
+  for (let y = 0; y < R.H; y++) for (let x = 0; x < R.W; x++) {
+    if (isWall(x, y)) continue;
+    if (x + 1 < R.W && !isWall(x + 1, y)) pen(CX(x) + s, CY(y) + 8, CX(x) + s, CY(y) + s - 8, .8, .22);
+    if (y > 0 && !isWall(x, y - 1)) pen(CX(x) + 8, CY(y) + s, CX(x) + s - 8, CY(y) + s, .8, .22);
+  }
+  inkRect(x0, y0, w, h, { w: 2.4 });
+  inkRect(x0 + 5, y0 + 5, w - 10, h - 10, { w: 1, n: 1, a: .45 });
+  return c;
+}
+function room(target, A, T) {
+  const { S, B, scr, cellX, cellY, doorFx, plateFx, GLYPH, cur, E, plateHeld, DPR, VW, VH } = A, R = S.R, s = B.s;
+  const key = S.n + '|' + S.runSeed + '|' + s + '|' + B.ox + '|' + B.oy + '|' + VW + 'x' + VH + '@' + DPR;
+  if (key !== roomKey) { roomKey = key; roomC = [0, 1, 2].map(v => buildRoom(A, v)); }
+  const boil = Math.floor(T * 4) % 3;
+  target.drawImage(roomC[boil], 0, 0, VW, VH);
+  ctx = target;
+  const bs = Math.floor(T * 9);
+  // plates
+  R.plates.forEach((p, j) => {
+    seed = 1 + ((bs * 977 + j * 131) % 2147480000);
+    const d = R.doors[p.door], G = GLYPH[p.door % 4], on = plateFx[j].on, [X, Y] = scr(p.x, p.y), r = s * .31;
+    const ring = shape(X, Y, r, r);
+    wash(ring, G.c, .45 + on * .4, 2.5);
+    fill(shape(X, Y, r * .55, r * .55), '#fbf9f4', 1);
+    if (on > .5) wash(shape(X, Y, r * .5, r * .5), G.c, .35, 1.5);
+    if (d.kind === 'inverse') hatch(ring, .8, 4, .5, 1.1);
+    ink(ell(X, Y, r, r, { over: .35 }), { w: 2 });
+    ink(ell(X, Y, r * .55, r * .55, { over: .3 }), { w: 1.5, n: 1 });
+    ink(glyphPts(G, X, Y, s * .085), { w: 1.6, n: 1, col: on > .5 ? INK : '#5b5348' });
+    if (on > .5) for (let k = 0; k < 3; k++) { const a = -Math.PI / 2 + (k - 1) * .6; line(X + Math.cos(a) * r * 1.15, Y + Math.sin(a) * r * 1.15, X + Math.cos(a) * r * 1.45, Y + Math.sin(a) * r * 1.45, { w: 1.6, n: 1 }); }
+    if (plateFx[j].hover) ink(ell(X, Y, r * 1.3, r * 1.3, { over: .5 }), { w: 1.5, n: 1, col: G.c });
+  });
+  // exit: a wobbly inked star in a swirl
+  {
+    seed = 1 + ((bs * 977 + 999) % 2147480000);
+    const [X, Y] = scr(R.exit.x, R.exit.y), r = s * .36, rot = T * .6, pts = [];
+    for (let k = 0; k <= 10; k++) { const a = rot + k * Math.PI / 5 - Math.PI / 2, rr = (k % 2 ? .45 : 1) * r * (1 + Math.sin(T * 4) * .05); pts.push([X + Math.cos(a) * rr, Y + Math.sin(a) * rr]); }
+    wash(shape(X, Y, r * 1.15, r * 1.15), '#f7d046', .35 + (S.nearExit || 0) * .3, 4);
+    wash(pts, '#f7c23a', .9, 1.5); ink(pts, { w: 2.2 });
+    for (let k = 0; k < 6; k++) { const a = -rot * .7 + k * Math.PI / 3, r0 = r * 1.2, r1 = r * (1.42 + Math.sin(T * 3 + k) * .08); line(X + Math.cos(a) * r0, Y + Math.sin(a) * r0, X + Math.cos(a) * r1, Y + Math.sin(a) * r1, { w: 1.4, n: 1 }); }
+  }
+  // gates
+  R.doors.forEach((d, i) => {
+    seed = 1 + ((bs * 977 + i * 577 + 3) % 2147480000);
+    const G = GLYPH[i % 4], f = doorFx[i], o = Math.min(1, Math.max(0, f.open)), X = cellX(d.x), Y = cellY(d.y) - B.h * .5, m = s * .1;
+    const shake = f.flash > 0 ? Math.sin(T * 60) * f.flash * s * .04 : 0;
+    const bx = X + m + shake, by = Y + m, bw = s - 2 * m;
+    target.save();
+    target.globalAlpha = .6 * o; target.setLineDash([5, 5]); target.strokeStyle = G.c; target.lineWidth = 1.6; target.strokeRect(bx, by, bw, bw); target.setLineDash([]);
+    if (o < .97) {
+      target.globalAlpha = 1 - o;
+      polyFill(rectJ(bx, by, bw, bw, .5), '#fff'); washRect(bx, by, bw, bw, G.c, .85);
+      hatchClip(() => ctx.rect(bx, by, bw, bw), bx, by, bx + bw, by + bw, 5, .22, .9);
+      for (let k = 1; k < 3; k++) pen(bx + 5, by + bw * k / 3, bx + bw - 5, by + bw * k / 3, 1, .4);
+      inkRect(bx, by, bw, bw, { w: 2.3 });
+      const gp = glyphPts(G, X + s / 2 + shake, Y + s / 2, s * .14); fill(gp, '#fff', .95); ink(gp, { w: 2, n: 2 });
+      if (d.kind === 'timed') { const cx = X + s * .8, cy = Y + s * .2, rr = s * .12; fill(shape(cx, cy, rr, rr), '#fff'); ink(ell(cx, cy, rr, rr, { over: .3 }), { w: 1.6, n: 1 }); line(cx, cy, cx, cy - rr * .65, { w: 1.4, n: 1 }); line(cx, cy, cx + rr * .5, cy + rr * .15, { w: 1.4, n: 1 }); }
+    }
+    target.restore();
+    if (d.kind === 'timed' && o > .5) {
+      const t = (cur().timers || [])[i] || 0;
+      if (t > 0 && !plateHeld(i)) {
+        const cx = X + s / 2, cy = Y + s / 2;
+        target.save(); target.font = `700 ${Math.round(s * .42)}px "Baloo Bhaijaan 2", system-ui, sans-serif`; target.textAlign = 'center'; target.textBaseline = 'middle';
+        target.fillStyle = INK; target.fillText('٠١٢٣٤٥٦٧٨٩'[t], cx, cy + s * .03); target.restore();
+        ink(ell(cx, cy, s * .3, s * .3, { over: (t / 3) * 6.283 - 6.283 }), { w: 2.2, col: G.c });
+      }
+    }
+  });
+  ctx = null;
+}
+return { cur: 'ثعلوب', paper: true, names: Object.keys(H), drawEnt, bg: paper, room };
 })();

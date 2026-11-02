@@ -12,15 +12,21 @@ const picker = `
 #pick button { border: 0; background: none; font: 700 14px var(--font); color: var(--soft); padding: 6px 10px 4px; border-radius: 11px; cursor: pointer; white-space: nowrap; }
 #pick button[aria-pressed=true] { background: var(--purple); color: #fff; }
 #top #mid { visibility: hidden; }
+#paperT { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 146px); z-index: 4; border: 0; cursor: pointer;
+  font: 700 13px var(--font); padding: 5px 12px 3px; border-radius: 99px; background: #fff; color: var(--soft); box-shadow: 0 2px 0 var(--lip); }
+#paperT[aria-pressed=true] { background: #1b1a1c; color: #fbf9f4; }
 </style>
 <div id="pick" role="group" aria-label="الشخصية">
   <button data-c="blob">البرتقالي</button><button data-c="ثعلوب">ثعلوب</button><button data-c="صوصو">صوصو</button><button data-c="بومبوم">بومبوم</button><button data-c="بطروق">بطروق</button>
 </div>
+<button id="paperT" aria-pressed="true">لوح مرسوم</button>
 <script>
 document.querySelectorAll('#pick button').forEach(b => {
   b.setAttribute('aria-pressed', b.dataset.c === SKETCH.cur);
   b.onclick = () => { SKETCH.cur = b.dataset.c; document.querySelectorAll('#pick button').forEach(x => x.setAttribute('aria-pressed', x === b)); };
 });
+const pt = document.getElementById('paperT');
+pt.onclick = () => { SKETCH.paper = !SKETCH.paper; pt.setAttribute('aria-pressed', SKETCH.paper); pt.textContent = SKETCH.paper ? 'لوح مرسوم' : 'لوح ناعم'; };
 </script>`;
 const logic = readFileSync(join(m, '..', 'src', 'logic.js'), 'utf8');
 const sk = readFileSync(join(here, 'sketch-chars.js'), 'utf8');
