@@ -888,6 +888,8 @@ function setExpr(e, x, t) { e.expr = x; e.exprT = t; }
 function drawEnt(e, T) {
   const [X, Y] = scr(e.x, e.y), bd = E.DIRS[e.face] || [0, 0], b = e.bumpOff || 0;
   const r = B.s * (e.ghost ? .34 : .38) * (.6 + .4 * easeOutBack(clamp(e.pop, 0, 1)));
+  // preview builds can swap in a character from the Aboden-Assets sketch pack (mobile/preview); the game build has none
+  if (window.SKETCH && SKETCH.cur !== 'blob' && SKETCH.drawEnt(ctx, e, X + bd[0] * b * B.s, Y - bd[1] * b * B.s + B.s * .3, B.s * (e.ghost ? .92 : 1) * (.6 + .4 * easeOutBack(clamp(e.pop, 0, 1))), T, [bd[0], -bd[1]], e.ghost ? 'calm' : e.expr)) return;
   drawBlob(ctx, X + bd[0] * b * B.s, Y - bd[1] * b * B.s - r * .55, r, {
     col: e.ghost ? COL.echo : COL.hero, dk: e.ghost ? COL.echoDk : COL.heroDk, sprout: e.ghost ? '#d6f0ff' : null, ghost: e.ghost,
     alpha: e.ghost ? .9 : 1, T, face: e.face, walkPh: e.walkPh, walkW: e.walkW, squash: e.sq, jump: e.jump,
