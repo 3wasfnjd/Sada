@@ -379,5 +379,5 @@ function room(target, A, T) {
   });
   ctx = null;
 }
-return { cur: 'ثعلوب', paper: true, names: Object.keys(H), drawEnt, bg: paper, room };
+return { cur: 'ثعلوب', names: Object.keys(H), drawEnt, paper, room };
 })();
