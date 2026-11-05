@@ -492,12 +492,12 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
   // # wall  . floor  S start  E exit
   // a/b/c hold door, A/B/C timed door; 1/2/3 plate for door a|A / b|B / c|C; x/y/z inverse plate (makes that door inverse)
   // short demonstration rooms; L is computed from the solution (+1 spare tick)
+  // every opening room needs a طيف (none can be solved alone — checked by the tests)
   const TUTORIAL = [
-    { map: ['.E.', '...', '.S.'], alone: true },
-    { map: ['.E.', '#a#', '1.S'], tasks: [[0]] },
-    { map: ['E..', '#b#', '...', '#a#', '21S'], tasks: [[0, 1]] },
-    { map: ['.E.', '#A#', '...', '1.S'], alone: true },
-    { map: ['E..', '#b#', 'y..', '#a#', '1.S'], tasks: [[0]] },
+    { map: ['.E.', '#a#', '1.S'], tasks: [[0]] },                                   // a طيف holds the door
+    { map: ['E..', '#b#', '...', '#a#', '21S'], tasks: [[0, 1]] },                  // one طيف, two doors
+    { map: ['E...', '#b##', '....', '###A', '....', '1.2S'], tasks: [[0, 1]] },     // clock door: pass while it counts down
+    { map: ['E..', '#b#', 'y..', '#a#', '1.S'], tasks: [[0]] },                     // striped plate: keep off it
   ];
   function fromMap(def, level) {
     const rows = def.map.slice().reverse(); const H = rows.length, W = rows[0].length;
