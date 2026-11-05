@@ -7,7 +7,7 @@ extends SceneTree
 
 const Env = preload("res://game/lowpoly/env.gd")
 const Islands = preload("res://game/lowpoly/islands.gd")
-const Hero = preload("res://game/lowpoly/fox_up.gd")   # the hero since 0.9.0 (fox.gd: on four legs; hero.gd: the elder)
+const Hero = preload("res://game/lowpoly/fox_v2.gd")   # the hero since Quest 1.1 (the user's model); fox_up.gd before it
 const Logic = preload("res://core/sada_logic.gd")
 const BUDGET := 60000   # triangles for a whole room with its island, doors, neon and figures
 
@@ -60,22 +60,27 @@ func _run() -> void:
 	if hb.size.y < 0.7 or hb.size.y > 1.0: fail("hero height %.2f (want 0.7..1.0 cells)" % hb.size.y)
 	# an animal is long: up to one cell nose to tail, a bit under one cell wide
 	if hb.size.x > 0.75 or hb.size.z > 1.0: fail("hero bigger than a cell: %s" % hb.size)
-	var want := {"calm": [0, 0], "smile": [1, 0], "surprise": [0, 1], "worry": [0, 2], "joy": [1, 1]}
-	for x in want:
-		h.expr(x, 0.0)
-		var eye: Node3D = h.eyes[0]
-		if not (eye.get_child(want[x][0]) as Node3D).visible: fail("expr %s: wrong eyes" % x)
-		if not (h.mouth.get_child(want[x][1]) as Node3D).visible: fail("expr %s: wrong mouth" % x)
+	# the clips and face shapes the game needs, and the expressions reach the face
+	for c in ["Idle", "Idle_Fidget", "Walk", "Hop", "Bump", "Land", "Cheer", "Worry"]:
+		if not h.ap.has_animation(c): fail("hero clip missing: %s" % c)
+	for k in ["blink", "eyes_happy", "eyes_closed", "eyes_wide", "mouth_open", "mouth_worry", "brows_up", "brows_worry"]:
+		if not h._shape.has(k): fail("hero face shape missing: %s" % k)
+	h.expr("surprise", 2.0)
+	for _i in 30: await process_frame
+	if h.face.get_blend_shape_value(h._shape["eyes_wide"]) < 0.5: fail("surprise not on the face")
 	h.expr("calm", 0.0); h.worry = 1.0
-	await process_frame
-	if not (h.mouth.get_child(2) as Node3D).visible: fail("worry (steps running out) not shown")
+	for _i in 30: await process_frame
+	if h.face.get_blend_shape_value(h._shape["mouth_worry"]) < 0.5: fail("worry (steps running out) not shown")
+	if h.ap.current_animation != "Worry": fail("worried idle clip not playing (%s)" % h.ap.current_animation)
+	h.worry = 0.0
 	for a in ["walk", "bump", "cheer", "idle"]:
 		h.play(a)
 		await process_frame
 	var g: Node3D = Hero.new()
 	g.build(true, StandardMaterial3D.new())
 	root.add_child(g)
-	if not (g.eyes[0].get_child(2) as Node3D).visible: fail("echo eyes should be closed")
+	for _i in 3: await process_frame
+	if g.face.get_blend_shape_value(g._shape["eyes_closed"]) < 0.99: fail("echo eyes should be closed")
 	var hero_tris := _tris(h)
 	# rooms: triangle budget through the real board
 	var board: Node3D = load("res://game/board.gd").new()

@@ -13,7 +13,7 @@ const ECHO_COLS := [Color(0.56, 0.85, 1.0), Color(0.53, 0.72, 1.0), Color(0.62, 
 const HOP := 0.32
 const LOWPOLY := true
 const Env = preload("res://game/lowpoly/env.gd")
-const Hero = preload("res://game/lowpoly/fox_up.gd")
+const Hero = preload("res://game/lowpoly/fox_v2.gd")   # the user's fox model v2 (Quest 1.1); fox_up.gd: the code-built fox before it
 const Islands = preload("res://game/lowpoly/islands.gd")   # varied islands, streams and waterfalls (Quest 1.1)
 const Life = preload("res://game/lowpoly/life.gd")   # wind, birds, butterflies, flowers, a rabbit (Quest 1.1)   # the hero since 0.9.0 (fox.gd: on four legs; hero.gd: the elder)
 

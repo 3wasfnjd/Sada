@@ -313,7 +313,7 @@ static func _blossom(lp: LP, at: Vector3, s: float, cr: float) -> float:
 		var c := top + Vector3(cos(a) * out, lp.rnd(-0.15, 0.1) * s, sin(a) * out)
 		Env._limb(lp, fork, c, 0.035 * s, 0.02 * s)
 		var r := lp.rnd(0.22, 0.32) * s
-		lp.blob(c, Vector3(r, r * 0.8, r), 0.12, pink[k % 4], 1)
+		lp.blob(c, Vector3(r, r * 0.8, r), 0.12, pink[k % 4])
 		reach = maxf(reach, Vector2(c.x - at.x, c.z - at.z).length() + r * 1.1)
 	lp.blob(top + Vector3(0, 0.08 * s, 0), Vector3(0.3, 0.24, 0.3) * s, 0.12, pink[1], 1)
 	return maxf(reach, 0.32 * s)
@@ -341,8 +341,8 @@ static func _shrub(lp: LP, at: Vector3, s: float, flora: String, pal: Dictionary
 
 static func _tuft(lp: LP, at: Vector3, h: float, pal: Dictionary) -> void:
 	var save := lp.xf
-	for k in 5:
-		var a := TAU * k / 5.0 + lp.rnd(0, 1)
+	for k in 4:
+		var a := TAU * k / 4.0 + lp.rnd(0, 1)
 		var d := lp.rnd(0.0, 0.04)
 		var lean := Basis(Vector3(-sin(a), 0, cos(a)), lp.rnd(0.15, 0.5))
 		lp.xf = save * Transform3D(lean, at + Vector3(cos(a) * d, -0.01, sin(a) * d))
@@ -440,7 +440,7 @@ static func _masses(lp: LP, top: PackedVector2Array, hw: float, hh: float, ex: f
 
 ## grass, flowers and small things that tell the kind of island
 static func _ground_cover(lp: LP, top: PackedVector2Array, hw: float, hh: float, flora: String, pal: Dictionary) -> void:
-	var count := 140 if flora == "palm" else 300
+	var count := 120 if flora == "palm" else 230
 	var placed := 0
 	for _i in 1100:
 		if placed >= count: break
