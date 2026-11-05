@@ -191,7 +191,7 @@ BT="$SDK/build-tools/$ANDROID_BUILD_TOOLS"
   "$BT/apksigner" verify --verbose --print-certs "$APK" | grep -E "Verified|Signer #1 certificate (DN|SHA-256)|Number of signers"
   echo
   echo "--- badging"
-  "$BT/aapt2" dump badging "$APK" | grep -E "^package:|sdkVersion|targetSdkVersion|application-label|native-code|uses-feature|uses-permission|launchable-activity"
+  "$BT/aapt2" dump badging "$APK" | grep -E "^package:|minSdkVersion|targetSdkVersion|application-label|native-code|uses-feature|uses-permission|launchable-activity"
   echo
   echo "--- manifest (XR launch)"
   "$BT/aapt2" dump xmltree --file AndroidManifest.xml "$APK" | grep -E "com.oculus|android.intent.category|PASSTHROUGH|supportedDevices|org.khronos.openxr" | sed 's/^ *//' | sort -u
@@ -214,7 +214,7 @@ unzip -l "$APK" | grep -q "lib/arm64-v8a/libgodotopenxrvendors.so"
 "$BT/aapt2" dump xmltree --file AndroidManifest.xml "$APK" | grep -q "org.khronos.openxr.intent.category.IMMERSIVE_HMD"
 "$BT/aapt2" dump badging "$APK" | grep -q "package: name='${PACKAGE}'"
 "$BT/aapt2" dump badging "$APK" | grep -q "targetSdkVersion:'34'"
-"$BT/aapt2" dump badging "$APK" | grep -q "sdkVersion:'32'"                       # minSdk 32 (Meta: at least 29)
+"$BT/aapt2" dump badging "$APK" | grep -q "minSdkVersion:'32'"                    # minSdk 32 (Meta: at least 29)
 unzip -l "$APK" | grep -q "lib/arm64-v8a/libgodot_meta_toolkit.so"                 # entitlement check available
 sha256sum "$APK" | tee "$APK.sha256"
 echo "APK=$APK" >> "${GITHUB_ENV:-/dev/null}"
