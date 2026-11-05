@@ -6,6 +6,7 @@ extends SceneTree
 ## - triangle budget per room (Quest), and the hero's faces switch as asked
 
 const Env = preload("res://game/lowpoly/env.gd")
+const Islands = preload("res://game/lowpoly/islands.gd")
 const Hero = preload("res://game/lowpoly/fox_up.gd")   # the hero since 0.9.0 (fox.gd: on four legs; hero.gd: the elder)
 const Logic = preload("res://core/sada_logic.gd")
 const BUDGET := 60000   # triangles for a whole room with its island, doors, neon and figures
@@ -80,12 +81,21 @@ func _run() -> void:
 	var board: Node3D = load("res://game/board.gd").new()
 	root.add_child(board)
 	var worst := 0; var worst_k := 0
-	for k in [1, 3, 6, 9, 12, 16, 20, 24, 25, 26, 28, 30]:
+	var prev_kind := {}
+	var seen := {}
+	for k in range(1, 61):
 		var R = Logic.room_for(k, 77)
 		if R == null: continue
 		board.build(R)
 		board.spawn(R.E + 1, Logic.start_pos(R, R.E + 1))
 		await process_frame
+		# islands: neighbouring rooms differ in rock base and plants; all kinds show up
+		var kind: Dictionary = Islands.last_kind
+		if prev_kind and (kind.base == prev_kind.base or kind.flora == prev_kind.flora):
+			fail("room %d: same island base/plants as the room before (%s)" % [k, kind])
+		prev_kind = kind
+		for f in ["base", "flora", "layout", "shape"]: seen[kind[f]] = true
+		seen["river" if kind.river else "dry"] = true
 		# trees: every crown stays over its own island, no trunk on the room
 		if Env.last_trees.is_empty(): fail("room %d: no trees" % k)
 		for tr in Env.last_trees:
@@ -95,6 +105,8 @@ func _run() -> void:
 		var t := _tris(board)
 		if t > worst: worst = t; worst_k = k
 		if t > BUDGET: fail("room %d (%dx%d): %d triangles > %d" % [k, R.W, R.H, t, BUDGET])
+	for want_kind in Islands.BASES + Islands.FLORAS + Islands.LAYOUTS + ["round", "lobed", "long", "river", "dry"]:
+		if not seen.has(want_kind): fail("island kind never used in rooms 1-60: %s" % want_kind)
 	print("hero: %d triangles; heaviest room: %d (%d triangles, budget %d)" % [hero_tris, worst_k, worst, BUDGET])
 	print("art test: %d failure(s)" % failed)
 	quit(1 if failed else 0)

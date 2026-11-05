@@ -14,10 +14,12 @@ const HOP := 0.32
 const LOWPOLY := true
 const Env = preload("res://game/lowpoly/env.gd")
 const Hero = preload("res://game/lowpoly/fox_up.gd")
+const Islands = preload("res://game/lowpoly/islands.gd")   # varied islands, streams and waterfalls (Quest 1.1)
 const Life = preload("res://game/lowpoly/life.gd")   # wind, birds, butterflies, flowers, a rabbit (Quest 1.1)   # the hero since 0.9.0 (fox.gd: on four legs; hero.gd: the elder)
 
 var R: Dictionary
 var room_node: Node3D
+var water_mats := []   # stream materials scrolled in _process
 var ents := []      # [{node, ap, from: Vector3, to: Vector3, t, dur, yaw, tyaw, bump, ghost}]
 var doors := []     # [{panel, open, target}]
 var plates := []    # [{node, on, target}]
@@ -207,7 +209,9 @@ func build(room: Dictionary) -> void:
 		room_node.add_child(_lp_mi(Env.floor_mesh(floor_cells, R.W, R.H, room_seed)))
 		if wall_cells.size():
 			room_node.add_child(_lp_mi(Env.wall_mesh(wall_cells, R.W, R.H, room_seed + 1)))
-		room_node.add_child(_lp_mi(Env.island_mesh(R, room_seed + 2)))
+		room_node.add_child(_lp_mi(Islands.build(R, room_seed + 2)))
+		for w in Islands.last_water: room_node.add_child(w)
+		water_mats = Islands.water_mats.duplicate()
 		life = Life.new()
 		life.setup(R, Env.last_outline, room_seed + 3)
 		life.visible = life_on; life.process_mode = Node.PROCESS_MODE_INHERIT if life_on else Node.PROCESS_MODE_DISABLED
@@ -741,44 +745,50 @@ func show_level(n: int, ar: bool) -> void:
 	var old := room_node.get_node_or_null("LevelSign")
 	if old: old.free()
 	if not LOWPOLY: return
+	# always at the front of the island, just right of the step timeline (the echo capsules are on its
+	# left), facing you and leaning back a little so it reads from above the table
 	var top: PackedVector2Array = Env.last_outline
 	var hw: float = R.W / 2.0; var hh: float = R.H / 2.0
-	var at := Vector3(-hw - 0.5, -0.05, hh - 0.1)
-	if not Env._crown_fits(top, at, 0.3): at = Vector3(hw + 0.5, -0.05, hh - 0.1)
-	if not Env._crown_fits(top, at, 0.3): at = Vector3(-hw - 0.45, -0.05, 0.0)
+	var tw: float = minf(R.W - 0.4, R.L * 0.32)
+	var at := Vector3(minf(tw / 2.0 + 0.6, hw + 0.15), -0.05, hh + 0.55)
+	for _i in 8:   # slide toward the middle until it stands on the grass
+		if Env._crown_fits(top, at, 0.4): break
+		at.x -= 0.1
 	var sign := Node3D.new(); sign.name = "LevelSign"
 	sign.position = at
-	sign.rotation.y = 0.35 if at.x < 0 else -0.35   # turned a little toward the middle
+	sign.rotation.x = -0.28
 	room_node.add_child(sign)
 	var lp := Env.LP.new(n * 31 + 7)
 	var wood := Env.WOOD
-	for sx in [-0.3, 0.3]:
-		lp.block(Vector3(sx, 0.36, -0.01), Vector3(0.07, 0.78, 0.07), 0.015, 0.006, wood.darkened(0.15))
-	lp.block(Vector3(0, 0.62, 0.02), Vector3(0.86, 0.5, 0.06), 0.03, 0.008, Color(0.66, 0.46, 0.28), Color(0.72, 0.52, 0.32))
-	for sx in [-0.32, 0.32]:
-		for sy in [0.45, 0.79]:
-			lp.blob(Vector3(sx, sy, 0.055), Vector3(0.014, 0.014, 0.008), 0.0, Env.IRON)
+	for sx in [-0.27, 0.27]:
+		lp.block(Vector3(sx, 0.3, -0.03), Vector3(0.06, 0.64, 0.06), 0.012, 0.004, wood.darkened(0.2))
+	lp.block(Vector3(0, 0.44, 0.0), Vector3(0.8, 0.6, 0.05), 0.02, 0.004, Color(0.42, 0.26, 0.14))           # dark frame
+	lp.block(Vector3(0, 0.44, 0.02), Vector3(0.72, 0.52, 0.04), 0.012, 0.004, Color(0.86, 0.68, 0.45), Color(0.9, 0.73, 0.5))   # light board
+	for sx in [-0.36, 0.36]:
+		for sy in [0.18, 0.7]:
+			lp.blob(Vector3(sx, sy, 0.03), Vector3(0.016, 0.016, 0.008), 0.0, Env.IRON)
 	var mi := _lp_mi(lp.commit()); sign.add_child(mi)
 	if _sign_font == null:
 		_sign_font = FontFile.new(); _sign_font.load_dynamic_font("res://assets/fonts/baloo-arabic.woff2")
 		var latin := FontFile.new(); latin.load_dynamic_font("res://assets/fonts/baloo-latin.woff2")
 		_sign_font.fallbacks = [latin]
-	var ink := Color(0.26, 0.15, 0.08)
+	var ink := Color(0.18, 0.09, 0.03)
 	var word := Label3D.new()
 	word.font = _sign_font; word.font_size = 30; word.pixel_size = 0.0042; word.outline_size = 0
 	word.modulate = ink; word.text = "المرحلة" if ar else "ROOM"
-	word.position = Vector3(0, 0.78, 0.054)
+	word.double_sided = false
+	word.position = Vector3(0, 0.6, 0.045)
 	sign.add_child(word)
 	var num := Label3D.new()
-	num.font = _sign_font; num.font_size = 78; num.pixel_size = 0.0042; num.outline_size = 0
-	num.modulate = ink
+	num.font = _sign_font; num.font_size = 84; num.pixel_size = 0.0042; num.outline_size = 0
+	num.modulate = ink; num.double_sided = false
 	var digits := str(n)
 	if ar:
 		var east := ""
 		for ch in digits: east += "٠١٢٣٤٥٦٧٨٩"[int(ch)]
 		digits = east
 	num.text = digits
-	num.position = Vector3(0, 0.56, 0.054)
+	num.position = Vector3(0, 0.38, 0.045)
 	sign.add_child(num)
 
 
@@ -790,6 +800,8 @@ func set_life(on: bool) -> void:
 
 
 func _process(dt: float) -> void:
+	for m in water_mats:
+		(m as StandardMaterial3D).uv1_offset.y -= dt * float(m.get_meta("speed"))
 	if life and ents.size():
 		life.hero = (ents[ents.size() - 1].node as Node3D).position
 	for e in ents:

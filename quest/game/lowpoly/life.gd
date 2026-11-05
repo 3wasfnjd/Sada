@@ -23,7 +23,7 @@ var _T := 0.0
 var _birds := []       # {node, wings:[L,R], head, state, t, a, b, ctrl, dur, wait, face}
 var _flies := []       # {node, wings, c, r, h, ph, sp}
 var _rabbit := {}
-var _streaks := []     # {mi, mat, p, v, life, age, len}
+var _streaks := []     # {mi, mesh, pts, dist, nrm, speed, trail, life, age, dir}
 var _perches := []     # wall-top spots next to the floor (where birds sit)
 
 
@@ -284,37 +284,29 @@ func _update_rabbit(dt: float) -> void:
 # ---------------- wind streaks ----------------
 
 func _streak(start := false) -> Dictionary:
-	# a long white line that runs along the island (front to back) with one small curl in it
+	# a breeze: a short white trail that travels straight, turns one clean circle, then goes on straight.
+	# The path is fixed; only a window of it (the trail) is drawn, moving along it like a gust.
 	var mi := MeshInstance3D.new()
-	var len := _rng.randf_range(2.4, 3.8)
-	var loop_r := _rng.randf_range(0.12, 0.2)
-	var loop_at := _rng.randf_range(0.35, 0.65)
-	var amp := _rng.randf_range(0.02, 0.05)
-	var pts := []
-	var n := 56
-	for i in n + 1:
-		var t := float(i) / n
-		var p := Vector3((t - 0.5) * len, sin(t * TAU * 0.7) * amp, 0)
-		# the curl: a full loop between loop_at-0.08 and loop_at+0.08, leaning toward you so it reads from above
-		var u := (t - (loop_at - 0.08)) / 0.16
-		if u > 0.0 and u < 1.0:
-			var th := u * TAU
-			p += Vector3(-sin(th) * loop_r * 1.1 + u * 0.0, (1.0 - cos(th)) * loop_r * 0.8, (1.0 - cos(th)) * loop_r * 0.45)
-		pts.append(p)
+	var r := _rng.randf_range(0.17, 0.26)
+	var l1 := _rng.randf_range(1.3, 2.0)
+	var l2 := _rng.randf_range(1.3, 2.0)
+	# the circle lies in a plane tilted up from the ground so it reads from where you sit (above, in front)
+	var side := Vector3(0, 0.5, 1).normalized() * (1.0 if _rng.randf() < 0.5 else -1.0)
+	var pts := PackedVector3Array()
+	var step := 0.05
+	var x := -l1
+	while x < 0.0:
+		pts.append(Vector3(x, 0, 0)); x += step
+	var n := int(TAU * r / step)
+	for i in n:
+		var th := TAU * i / n
+		pts.append(Vector3(sin(th) * r, 0, 0) + side * (1.0 - cos(th)) * r)
+	x = 0.0
+	while x <= l2:
+		pts.append(Vector3(x, 0, 0)); x += step
+	var dist := PackedFloat32Array([0.0])
+	for i in range(1, pts.size()): dist.append(dist[i - 1] + pts[i].distance_to(pts[i - 1]))
 	var m := ImmediateMesh.new()
-	var w := 0.024
-	m.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
-	for i in pts.size():
-		var p: Vector3 = pts[i]
-		var tan: Vector3 = (pts[mini(i + 1, pts.size() - 1)] - pts[maxi(i - 1, 0)]).normalized()
-		var side := tan.cross(Vector3(0.0, 0.75, 0.66).normalized())
-		if side.length() < 0.2: side = Vector3(0, 0, 1)
-		side = side.normalized() * w
-		var t := float(i) / (pts.size() - 1)
-		var a := sin(t * PI)   # fades at both ends
-		m.surface_set_color(Color(1, 1, 1, a)); m.surface_add_vertex(p + side)
-		m.surface_set_color(Color(1, 1, 1, a)); m.surface_add_vertex(p - side)
-	m.surface_end()
 	mi.mesh = m
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -322,33 +314,62 @@ func _streak(start := false) -> Dictionary:
 	mat.vertex_color_use_as_albedo = true
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-	mat.albedo_color = Color(1, 1, 1, 0)
 	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
-	# along the island: front (+z, near you) to back (-z), a little sideways drift
-	var s := {"mi": mi, "mat": mat, "life": _rng.randf_range(3.0, 5.0), "age": 0.0, "v": Vector3(_rng.randf_range(-0.08, 0.08), 0, -_rng.randf_range(0.9, 1.3))}
+	var speed := _rng.randf_range(1.0, 1.3)
+	var trail := _rng.randf_range(0.8, 1.1)
+	var s := {"mi": mi, "mesh": m, "pts": pts, "dist": dist, "nrm": Vector3(1, 0, 0).cross(side).normalized(),
+		"speed": speed, "trail": trail, "life": (dist[dist.size() - 1] + trail) / speed + _rng.randf_range(0.6, 2.5),
+		"age": 0.0, "dir": Vector3(_rng.randf_range(-0.12, 0.12), 0, -1.0).normalized()}
 	_respawn(s, start)
 	return s
 
 
 func _respawn(s: Dictionary, start := false) -> void:
 	var mi: MeshInstance3D = s.mi
-	var z0 := _hh + 2.2
-	mi.position = Vector3(_rng.randf_range(-_hw - 0.4, _hw + 0.4), _rng.randf_range(0.5, 1.8), z0 - (_rng.randf_range(0, _hh * 2 + 2) if start else 0.0))
-	var v: Vector3 = s.v
-	mi.rotation.y = atan2(-v.z, v.x)   # the mesh runs along its own x: turn it to face the wind
-	s.age = _rng.randf_range(0, s.life * 0.6) if start else 0.0
+	var v: Vector3 = s.dir
+	# starts in front of the room (near you) and blows along the island to the back
+	mi.position = Vector3(_rng.randf_range(-_hw - 0.3, _hw + 0.3), _rng.randf_range(0.45, 1.6), _hh + 0.6 - (_rng.randf_range(0, _hh) if start else 0.0))
+	mi.rotation.y = atan2(-v.z, v.x)   # the path runs along its own x: turn it to face the wind
+	s.age = _rng.randf_range(0, s.life * 0.7) if start else 0.0
+
+
+## redraw the visible part of a breeze: from the head back `trail` along the path, fading at both ends
+func _draw_streak(s: Dictionary) -> void:
+	var m: ImmediateMesh = s.mesh
+	m.clear_surfaces()
+	var pts: PackedVector3Array = s.pts
+	var dist: PackedFloat32Array = s.dist
+	var head: float = s.age * s.speed
+	var tail: float = head - s.trail
+	var total: float = dist[dist.size() - 1]
+	if head <= 0.0 or tail >= total: return
+	var nrm: Vector3 = s.nrm
+	var w := 0.022
+	var verts := 0
+	m.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	for i in pts.size():
+		if dist[i] < tail or dist[i] > head: continue
+		var k: float = (dist[i] - tail) / float(s.trail)   # 0 at the tail, 1 at the head
+		var a := clampf(k * 1.6, 0.0, 1.0) * clampf((1.0 - k) * 6.0, 0.0, 1.0) * 0.75
+		var hw := w * (0.35 + 0.65 * k)              # thin tail, fuller head
+		m.surface_set_color(Color(1, 1, 1, a)); m.surface_add_vertex(pts[i] + nrm * hw)
+		m.surface_set_color(Color(1, 1, 1, a)); m.surface_add_vertex(pts[i] - nrm * hw)
+		verts += 2
+	if verts < 4:   # an ImmediateMesh surface needs something to draw
+		m.surface_set_color(Color(1, 1, 1, 0)); m.surface_add_vertex(Vector3.ZERO)
+		m.surface_set_color(Color(1, 1, 1, 0)); m.surface_add_vertex(Vector3(0.001, 0, 0))
+		m.surface_set_color(Color(1, 1, 1, 0)); m.surface_add_vertex(Vector3(0, 0.001, 0))
+		m.surface_set_color(Color(1, 1, 1, 0)); m.surface_add_vertex(Vector3(0.001, 0.001, 0))
+	m.surface_end()
 
 
 func _update_streaks(dt: float) -> void:
 	for s in _streaks:
 		s.age += dt
-		var mi: MeshInstance3D = s.mi
-		mi.position += (s.v as Vector3) * dt
-		var k: float = s.age / s.life
-		(s.mat as StandardMaterial3D).albedo_color.a = clampf(sin(clampf(k, 0, 1) * PI), 0, 1) * 0.7
-		if k >= 1.0: _respawn(s)
+		if s.age >= s.life: _respawn(s)
+		_draw_streak(s)
 
 
 # ---------------- per frame ----------------
