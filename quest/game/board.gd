@@ -13,7 +13,8 @@ const ECHO_COLS := [Color(0.56, 0.85, 1.0), Color(0.53, 0.72, 1.0), Color(0.62, 
 const HOP := 0.32
 const LOWPOLY := true
 const Env = preload("res://game/lowpoly/env.gd")
-const Hero = preload("res://game/lowpoly/fox_up.gd")   # the hero since 0.9.0 (fox.gd: on four legs; hero.gd: the elder)
+const Hero = preload("res://game/lowpoly/fox_up.gd")
+const Life = preload("res://game/lowpoly/life.gd")   # wind, birds, butterflies, flowers, a rabbit (Quest 1.1)   # the hero since 0.9.0 (fox.gd: on four legs; hero.gd: the elder)
 
 var R: Dictionary
 var room_node: Node3D
@@ -33,6 +34,8 @@ var _lp_cache := {}   # code-built meshes shared by every room (door frame, pane
 var viewer := Vector3(0, 10, 10)   # the player's head in world space (set by main), for the idle glance
 var _ghost_mats := []
 var _statue: StandardMaterial3D
+var life: Node3D = null
+var life_on := true   # menu setting: «حياة المشهد»
 
 
 func _ready() -> void:
@@ -205,6 +208,10 @@ func build(room: Dictionary) -> void:
 		if wall_cells.size():
 			room_node.add_child(_lp_mi(Env.wall_mesh(wall_cells, R.W, R.H, room_seed + 1)))
 		room_node.add_child(_lp_mi(Env.island_mesh(R, room_seed + 2)))
+		life = Life.new()
+		life.setup(R, Env.last_outline, room_seed + 3)
+		life.visible = life_on; life.process_mode = Node.PROCESS_MODE_INHERIT if life_on else Node.PROCESS_MODE_DISABLED
+		room_node.add_child(life)
 	else:
 		room_node.add_child(_multi("FloorTile_1x1", floor_cells))
 		if wall_cells.size():
@@ -725,7 +732,16 @@ func clear_hint() -> void:
 		hint_node = null
 
 
+func set_life(on: bool) -> void:
+	life_on = on
+	if life:
+		life.visible = on
+		life.process_mode = Node.PROCESS_MODE_INHERIT if on else Node.PROCESS_MODE_DISABLED
+
+
 func _process(dt: float) -> void:
+	if life and ents.size():
+		life.hero = (ents[ents.size() - 1].node as Node3D).position
 	for e in ents:
 		if e.t < 1.0:
 			e.t = minf(1.0, e.t + dt / e.dur)

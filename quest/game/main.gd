@@ -11,11 +11,12 @@ extends Node3D
 ##   X                    hint (limited)         Y   one loop back
 ##   left trigger         end this loop now: what you walked becomes a طيف (no more waiting)
 ##   left stick click     show / hide the controls card
+##   ☰ (left menu button) the menu: how to play, settings, language, studio, about
 ##   left stick           x: turn the table, y: bigger / smaller
 ##   grip tap             bring the table in front of you
 ##   grip hold (one)      carry the table; both grips: pinch to resize and turn
 ## Desktop (no headset): arrows, space = wait, Z = undo, H = hint, Backspace = loop back,
-## Enter = end loop now, F1 = controls card.
+## Enter = end loop now, F1 = controls card, Esc = menu.
 ##
 ## Store rules handled here: pauses (and hides controllers, mutes) while the system menu is
 ## open or the headset is off (VRC.Quest.Functional.2 / Input.4); entitlement check at launch
@@ -24,6 +25,8 @@ extends Node3D
 const Logic = preload("res://core/sada_logic.gd")
 const Board = preload("res://game/board.gd")
 const Entitlement = preload("res://core/store_entitlement.gd")
+const Menu = preload("res://game/menu.gd")
+const Strings = preload("res://game/strings.gd")
 const TICK := 0.3
 const TABLE_SIZE := 0.62   # metres: the larger side of the room on the table
 const START_HELP := 3
@@ -66,6 +69,12 @@ var _models := []          # controller render models (hidden while the system m
 var focused := true
 var help_card: Node3D
 var help_seen := false
+var menu: Node3D
+var lang := "ar"
+var sound_on := true
+var volume := 0.8
+var life_on := true
+var _help_label: Label3D
 
 
 func _ready() -> void:
@@ -141,6 +150,8 @@ func _ready() -> void:
 	_make_sounds()
 	_load()
 	_make_help_card()
+	_make_menu()
+	_apply_settings()
 	load_room(n)
 	var ent := Entitlement.new(); add_child(ent); ent.run()
 
@@ -153,7 +164,7 @@ func _set_focus(on: bool) -> void:
 	get_tree().paused = not on
 	for m in _models: (m as Node3D).visible = on
 	if ray: ray.visible = on
-	AudioServer.set_bus_mute(0, not on)
+	AudioServer.set_bus_mute(0, not on or not sound_on)
 	_prev.clear(); _drag = {}
 
 
@@ -164,12 +175,13 @@ func _make_help_card() -> void:
 	help_card.position = Vector3(0, 0.2, -0.44)
 	help_card.rotation_degrees = Vector3(-12, 0, 0)
 	var bg := MeshInstance3D.new()
-	var q := QuadMesh.new(); q.size = Vector2(0.6, 0.36)
+	var q := QuadMesh.new(); q.size = Vector2(0.62, 0.34)
 	bg.mesh = q
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.albedo_color = Color(0.08, 0.07, 0.1, 0.82)
+	m.render_priority = 0
 	bg.material_override = m
 	bg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	help_card.add_child(bg)
@@ -180,26 +192,66 @@ func _make_help_card() -> void:
 	f.fallbacks = [latin]
 	var l := Label3D.new()
 	l.font = f
-	l.font_size = 40
+	l.font_size = 34
 	l.pixel_size = 0.00075
+	l.render_priority = 2          # always over its own translucent backing
+	l.outline_render_priority = 1
 	l.outline_size = 0
 	l.modulate = Color(1, 0.94, 0.82)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.text_direction = TextServer.DIRECTION_RTL
-	l.width = 740
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.text = "\n".join([
-		"العصا اليمنى: امشِ خطوة",
-		"الزناد الأيمن على مربع: روح له",
-		"A: انتظر      B: تراجع خطوة",
-		"X: تلميح      Y: ارجع دورة",
-		"الزناد الأيسر: خلّص الدورة الحين وخلّ مشيك طيف",
-		"القبضة: حرّك الطاولة      العصا اليسرى: لفّ وكبّر",
-		"اضغط العصا اليسرى لإخفاء هذي اللوحة",
-	])
+	l.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_help_label = l
 	l.position = Vector3(0, 0, 0.002)
 	help_card.add_child(l)
 	help_card.visible = not help_seen
+
+
+func _make_menu() -> void:
+	menu = Menu.new()
+	menu.version = String(ProjectSettings.get_setting("application/config/version", "1.0.0"))
+	add_child(menu)
+	menu.action.connect(_on_menu)
+
+
+## settings, language and the texts that depend on them
+func _apply_settings() -> void:
+	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(volume, 0.001)))
+	AudioServer.set_bus_mute(0, not sound_on or not focused)
+	board.set_life(life_on)
+	var ar := lang == "ar"
+	_help_label.text = Strings.t(lang, "card_text")
+	_help_label.text_direction = TextServer.DIRECTION_RTL if ar else TextServer.DIRECTION_LTR
+	menu.lang = lang
+	menu.settings = {"sound": sound_on, "volume": volume, "life": life_on, "card": not help_seen}
+	if menu.is_open(): menu.rebuild()
+
+
+func toggle_menu() -> void:
+	if menu.is_open():
+		menu.close()
+	else:
+		walk.clear()
+		menu.open_at(cam.global_transform)
+
+
+func _on_menu(what: String, value: Variant) -> void:
+	match what:
+		"close": menu.close()
+		"sound": sound_on = value
+		"volume": volume = value
+		"life": life_on = value
+		"card":
+			help_seen = not value; help_card.visible = value
+		"recenter": place_table()
+		"zoom": set_zoom(1.0)
+		"restart":
+			randomize(); run_seed = randi_range(1, 1 << 30); help = START_HELP
+			menu.close(); load_room(1)
+		"lang": lang = value
+	if what != "volume": _apply_settings()
+	else: AudioServer.set_bus_volume_db(0, linear_to_db(maxf(volume, 0.001)))
+	_save()
 
 
 func toggle_help() -> void:
@@ -459,6 +511,22 @@ func _pressed(h: String, b: String) -> bool:
 
 
 func _xr_input(dt: float) -> void:
+	if _pressed("left", "menu_button"): toggle_menu()
+	if menu.is_open():   # the menu takes the right controller's ray and trigger; the game waits
+		var rc: XRController3D = hands.get("right")
+		if rc:
+			var o := rc.global_position; var d := -rc.global_basis.z
+			var px = menu.ray_px(o, d)
+			menu.pointer(px, rc.get_float("trigger") > 0.6)
+			if ray:
+				var len := 0.6
+				if px != null: len = clampf(o.distance_to(menu.dot.global_position), 0.05, 1.5)
+				var side := d.cross(Vector3.UP)
+				if side.length() < 1e-3: side = Vector3.RIGHT
+				side = side.normalized()
+				ray.global_transform = Transform3D(Basis(side, d * len, side.cross(d)), o + d * len / 2.0)
+		board.hover(null)
+		return
 	_grips(dt)
 	# left stick: x turns the table, y makes it bigger / smaller
 	var lc: XRController3D = hands.get("left")
@@ -581,6 +649,7 @@ func _update_ray(c: XRController3D) -> void:
 
 func _unhandled_input(e: InputEvent) -> void:
 	if not (e is InputEventKey and e.pressed and not e.echo): return
+	if menu and menu.is_open() and e.keycode != KEY_ESCAPE: return   # the game waits while the menu is open
 	match e.keycode:
 		KEY_UP: walk.clear(); do_action("U")
 		KEY_DOWN: walk.clear(); do_action("D")
@@ -592,6 +661,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		KEY_BACKSPACE: back_loop()
 		KEY_ENTER: end_loop_now()
 		KEY_F1: toggle_help()
+		KEY_ESCAPE: toggle_menu()
 
 
 func _buzz(dur: float) -> void:
@@ -644,6 +714,10 @@ func _load() -> void:
 		help = int(c.get_value("run", "help", START_HELP))
 		zoom = clampf(float(c.get_value("view", "zoom", 1.0)), ZOOM_MIN, ZOOM_MAX)
 		help_seen = bool(c.get_value("view", "help_seen", false))
+		lang = String(c.get_value("view", "lang", "ar"))
+		sound_on = bool(c.get_value("view", "sound", true))
+		volume = clampf(float(c.get_value("view", "volume", 0.8)), 0.0, 1.0)
+		life_on = bool(c.get_value("view", "life", true))
 	if run_seed == 0:
 		randomize(); run_seed = randi_range(1, 1 << 30)
 
@@ -651,4 +725,5 @@ func _load() -> void:
 func _save() -> void:
 	var c := ConfigFile.new()
 	c.set_value("run", "seed", run_seed); c.set_value("run", "room", n); c.set_value("run", "help", help); c.set_value("view", "zoom", zoom); c.set_value("view", "help_seen", help_seen)
+	c.set_value("view", "lang", lang); c.set_value("view", "sound", sound_on); c.set_value("view", "volume", volume); c.set_value("view", "life", life_on)
 	c.save(SAVE)
