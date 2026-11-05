@@ -1,0 +1,71 @@
+name: Tayf signing key · مفتاح التوقيع الدائم (مرة وحدة)
+# Creates the Meta Quest release keystore for طيف (com.abodengames.tayf) on the runner and stores it
+# straight into the SADA_KEYSTORE_B64 secret; the key never appears in logs, chat or the repository.
+# An AES-256 encrypted backup is kept as a short-lived artifact for the owner to save.
+# Same recipe as Dahrooj-Quest. Needs these repository secrets first (added by the owner):
+#   SADA_KEYSTORE_PASSWORD  the keystore password (20+ characters, letters and digits)
+#   SADA_KEYSTORE_ALIAS     e.g. tayf
+#   KEY_BACKUP_PASSWORD     a different password for the backup file (20+ characters)
+#   SIGNING_ADMIN_TOKEN     a fine-grained token with "Secrets: Read and write" on this repo
+# Refuses to run if SADA_KEYSTORE_B64 already exists (the store key must never change).
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  create:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - name: Create the key and store it as a secret (nothing secret is printed)
+        env:
+          GH_TOKEN: ${{ secrets.SIGNING_ADMIN_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          KS_PASS: ${{ secrets.SADA_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.SADA_KEYSTORE_ALIAS }}
+          BACKUP_PASS: ${{ secrets.KEY_BACKUP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for v in GH_TOKEN KS_PASS KS_ALIAS BACKUP_PASS; do
+            if [ -z "${!v}" ]; then echo "::error::Missing secret for $v (see the comment at the top of this workflow)."; exit 1; fi
+          done
+          if [ "${#KS_PASS}" -lt 20 ] || [ "${#BACKUP_PASS}" -lt 20 ]; then
+            echo "::error::Use passwords of at least 20 characters."; exit 1
+          fi
+          if [ "$KS_PASS" = "$BACKUP_PASS" ]; then
+            echo "::error::KEY_BACKUP_PASSWORD must differ from SADA_KEYSTORE_PASSWORD."; exit 1
+          fi
+          if ! EXISTING="$(gh secret list --repo "$GH_REPO" --json name -q '.[].name')"; then
+            echo "::error::SIGNING_ADMIN_TOKEN cannot read this repo's secrets. Give the token 'Secrets: Read and write' on this repository."; exit 1
+          fi
+          if printf '%s\n' "$EXISTING" | grep -qx SADA_KEYSTORE_B64; then
+            echo "::error::SADA_KEYSTORE_B64 already exists. Refusing to replace the permanent store key."; exit 1
+          fi
+          KS="$RUNNER_TEMP/tayf-release.keystore"
+          ALIAS="$(printf '%s' "$KS_ALIAS" | tr -d '\r\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+          keytool -genkeypair -keystore "$KS" -storetype PKCS12 -alias "$ALIAS" -keyalg RSA -keysize 4096 \
+            -validity 36500 -dname "CN=Aboden Games, O=Aboden Games, C=SA" \
+            -storepass:env KS_PASS -keypass:env KS_PASS >/dev/null 2>&1
+          mkdir -p backup
+          printf '%s' "$BACKUP_PASS" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 --output backup/tayf-quest-signing-key.gpg "$KS"
+          base64 -w0 "$KS" | gh secret set SADA_KEYSTORE_B64 --repo "$GH_REPO"
+          SHA="$(keytool -list -v -keystore "$KS" -alias "$ALIAS" -storepass:env KS_PASS | sed -n 's/^[[:space:]]*SHA256: //p' | head -1)"
+          rm -f "$KS"
+          {
+            echo "### تم إنشاء مفتاح التوقيع الدائم لطيف وحفظه في SADA_KEYSTORE_B64"
+            echo ""
+            echo "بصمة الشهادة (عامة، مو سر): \`$SHA\`"
+            echo ""
+            echo "- نزّل الملف المشفر **tayf-quest-signing-key** من أسفل الصفحة واحفظه في مكانين (iCloud + مكان ثاني)."
+            echo "- احفظ كلمتي المرور (SADA_KEYSTORE_PASSWORD و KEY_BACKUP_PASSWORD) في مكان آمن منفصل."
+            echo "- احذف السر SIGNING_ADMIN_TOKEN والتوكن نفسه من GitHub الحين."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tayf-quest-signing-key
+          path: backup/tayf-quest-signing-key.gpg
+          if-no-files-found: error
+          retention-days: 7

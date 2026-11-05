@@ -94,6 +94,10 @@ svg .f { fill: currentColor; stroke-width: 1.2; }
 }
 .badge.free { background: #2fb47c; box-shadow: 0 2px 0 #1d8a5b; font-size: 12px; }
 .big.pulse { animation: pulse 1.3s ease-in-out infinite; }
+/* hold «انتظر» to end the loop: a ring fills around the icon */
+.big .ic { position: relative; }
+.big.holding .ic::after { content: ''; position: absolute; inset: -5px; border-radius: 17px; border: 3px solid #2fb47c; clip-path: inset(100% 0 0 0); animation: fillup .55s linear forwards; }
+@keyframes fillup { to { clip-path: inset(0 0 0 0); } }
 .big.armed { box-shadow: 0 5px 0 #f2457f, 0 0 0 4px #ff7aa855; }
 @keyframes pulse { 50% { transform: translateY(-4px) scale(1.06); } }
 .big:focus-visible, .round:focus-visible { outline: 3px solid var(--purple); outline-offset: 3px; }
@@ -124,6 +128,7 @@ svg .f { fill: currentColor; stroke-width: 1.2; }
   position: fixed; inset: 0; background: radial-gradient(circle at 50% 38%, #fff 0, #e6ecf4 45%, #d5dde9 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   cursor: pointer; z-index: 5;
 }
+#title[hidden] { display: none; }   /* the display:flex above would otherwise keep it (invisible) over the game, eating every tap */
 #tcv { width: 180px; height: 180px; }
 #title h1 { margin: 0; font-size: 84px; line-height: 1; font-weight: 800; color: #fff; -webkit-text-stroke: 10px var(--ink); paint-order: stroke fill; text-shadow: 0 7px 0 #1f2a40; letter-spacing: 0; }
 #title .by { font-size: 14px; font-weight: 700; color: var(--soft); letter-spacing: .5px; margin-top: 30px; }

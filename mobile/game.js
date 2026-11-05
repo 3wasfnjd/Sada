@@ -514,18 +514,7 @@ const buzz = p => { try { navigator.vibrate && navigator.vibrate(p); } catch (e)
 function setMuted(m) { S.muted = m; if (master) master.gain.value = m ? 0 : .8; $('bSound').classList.toggle('off', m); save(); }
 
 // ---------------- room flow (same rules as every other version) ----------------
-// Opening rooms for this version: every one of them needs a طيف (checked: none can be solved alone).
-// rows top -> bottom; a/b hold door, A timed door, 1/2 their plates, y inverse plate (see logic.js fromMap)
-const TUT = [
-  { map: ['.E.', '#a#', '1.S'], tasks: [[0]] },                                   // a طيف holds the door
-  { map: ['E..', '#b#', '...', '#a#', '21S'], tasks: [[0, 1]] },                  // one طيف, two doors
-  { map: ['E...', '#b##', '....', '###A', '....', '1.2S'], tasks: [[0, 1]] },     // clock door: pass while it counts down
-  { map: ['E..', '#b#', 'y..', '#a#', '1.S'], tasks: [[0]] },                     // striped plate: keep off it
-];
-function roomFor(n, seed) {
-  if (n <= TUT.length) return E.fromMap(TUT[n - 1], n);
-  return E.generate(n - TUT.length, (seed * 1000003 + n * 7919) >>> 0);   // generated rooms always need طيف (verify rejects solo rooms)
-}
+const roomFor = (n, seed) => E.roomFor(n, seed);   // opening rooms live in logic.js (all need a طيف)
 function loadRoom(n) {
   if (S.demo) { clearInterval(S.demo.iv); S.demo = null; $('bHelp').classList.remove('armed'); }
   S.n = n; S.R = roomFor(n, S.runSeed);
@@ -540,7 +529,7 @@ function loadRoom(n) {
   if (S.R.tutorial && !S.demoSeen[n] && S.started) { S.demoSeen[n] = 1; save(); setTimeout(() => startDemo(true), 900); }
 }
 const TIPS = [
-  'امشِ لدائرة الباب وانتظر حتى تخلص خطواتك… مشيك يصير طيفًا يمسك الباب لك في الدورة الجاية',
+  'امشِ لدائرة الباب، ثم اضغط مطوّلًا على «انتظر»: مشيك يصير طيفًا يمسك الباب لك في الدورة الجاية',
   'طيف واحد يقدر يفتح بابين: خلّه يمر على الدائرتين بالترتيب',
   'باب الساعة يبقى مفتوحًا ٣ خطوات بعد ما ينزل الطيف عن دائرته — اعبره في وقته',
   'الدائرة المخططة عكس الباقي: تقفل بابها لما أحد يقف عليها، فخلّ طيفك بعيد عنها',
@@ -612,6 +601,14 @@ function backLoop() {
   if (!S.acts.length && !S.echoes.length) return;
   S.walk = [];
   rewind(() => { if (!S.acts.length && S.echoes.length) S.echoes.pop(); S.acts = []; recompute(); spawnEnts(); doorsUpdate(true); ui(); });
+}
+// end the loop early: the steps so far become a طيف (it waits out the rest), a new loop starts;
+// with no طيف left in the budget the loop restarts instead. Long-press «انتظر», or Enter.
+function endLoopNow() {
+  if (S.demo || S.busy || S.won || S.rewinding || !S.acts.length) return;
+  S.walk = []; buzz([10, 40, 10]);
+  if (S.echoes.length < S.R.E) endLoopAsEcho();
+  else { S.fails++; retryLoop(); }
 }
 function undo() {
   if (S.demo) return stopDemo();
@@ -758,8 +755,16 @@ window.addEventListener('keydown', e => {
   const k = { ArrowUp: 'U', ArrowDown: 'D', ArrowLeft: 'L', ArrowRight: 'R', ' ': 'W' }[e.key];
   if (k && S.started) { e.preventDefault(); S.walk = []; doAction(k); }
   if (e.key === 'z' || e.key === 'Backspace') undo();
+  if (e.key === 'Enter' && S.started) endLoopNow();
 });
-$('bWait').onclick = () => { audioStart(); S.walk = []; doAction('W'); };
+// «انتظر»: tap = wait one tick; hold half a second = end this loop now (the ring fills while you hold)
+{
+  const b = $('bWait'); let holdT = 0, held = false;
+  b.addEventListener('pointerdown', () => { held = false; b.classList.add('holding'); holdT = setTimeout(() => { held = true; b.classList.remove('holding'); audioStart(); endLoopNow(); }, 550); });
+  const cancel = () => { clearTimeout(holdT); b.classList.remove('holding'); };
+  b.addEventListener('pointerup', cancel); b.addEventListener('pointerleave', cancel); b.addEventListener('pointercancel', cancel);
+  b.onclick = () => { if (held) { held = false; return; } audioStart(); S.walk = []; doAction('W'); };
+}
 $('bUndo').onclick = () => { audioStart(); SFX.tap(); undo(); };
 $('bBack').onclick = () => { audioStart(); SFX.tap(); backLoop(); };
 $('bHelp').onclick = () => { audioStart(); SFX.tap(); pressHelp(); };
@@ -767,7 +772,7 @@ $('bSound').onclick = () => { audioStart(); setMuted(!S.muted); };
 function begin() {
   if (S.started) return;
   S.started = true; audioStart();
-  const t = $('title'); t.style.transition = 'opacity .5s'; t.style.opacity = 0; setTimeout(() => (t.hidden = true), 500);
+  const t = $('title'); t.style.transition = 'opacity .5s'; t.style.opacity = 0; t.style.pointerEvents = 'none'; setTimeout(() => (t.hidden = true), 500);
   if (S.R.tutorial && !S.demoSeen[S.n]) { S.demoSeen[S.n] = 1; save(); setTimeout(() => startDemo(true), 700); }
 }
 $('title').addEventListener('pointerup', begin);

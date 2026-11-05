@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# صدى — Sada: reproducible Quest APK build (used by .github/workflows/quest-apk.yml).
+# طيف — Tayf (repo: Sada): reproducible Quest APK build (used by .github/workflows/quest-apk.yml).
 # Adapted from the Mafateeh pipeline that already produces installable Quest APKs.
 # Runs on a stock ubuntu-24.04 GitHub runner; no desktop editor needed.
 #
@@ -103,7 +103,7 @@ if [ -n "${SADA_KEYSTORE_B64:-}" ]; then
   # A JKS keystore may hold a key password different from the store password;
   # Godot signs with one password for both.
   if ! "$KT" -certreq -keystore "$KEYDIR/release.keystore" -storepass "$KS_PASS" -keypass "$KS_PASS" -alias "$KS_ALIAS" >/dev/null 2>&1; then
-    echo "::error::The key '$KS_ALIAS' has its own password, different from the keystore password. Recreate the keystore with -storetype PKCS12 (one password) as in docs/meta-store-submission.md."
+    echo "::error::The key '$KS_ALIAS' has its own password, different from the keystore password. Recreate the keystore with -storetype PKCS12 (one password) (see docs/store/UPLOAD_CHECKLIST_AR.md)."
     exit 1
   fi
   echo "keystore check: password and alias OK"
@@ -133,9 +133,20 @@ else
 fi
 echo "$SIGNING"
 
-PACKAGE="com.abodengames.sada"
+PACKAGE="com.abodengames.tayf"
 
 log "Version ${APP_VERSION} (${VERSION_CODE})"
+# Store builds: the Meta App ID turns on the entitlement check (core/store_entitlement.gd).
+# Sideload/test builds leave it empty and the check is skipped.
+if [ -n "${META_APP_ID:-}" ]; then
+  APPID="$(printf '%s' "$META_APP_ID" | tr -cd '0-9')"
+  [ -n "$APPID" ] || { echo "::error::META_APP_ID must be the numeric App ID from the Developer Dashboard (API tab)."; exit 1; }
+  sed -i "s/^store\/meta_app_id=.*/store\/meta_app_id=\"$APPID\"/" "$ROOT/project.godot"
+  grep -q "^store/meta_app_id=\"$APPID\"" "$ROOT/project.godot"
+  echo "entitlement check: ON (App ID set)"
+else
+  echo "entitlement check: off (no META_APP_ID: sideload/test build)"
+fi
 sed -i "s/^version\/code=.*/version\/code=${VERSION_CODE}/; s/^version\/name=.*/version\/name=\"${APP_VERSION}\"/" "$ROOT/export_presets.cfg"
 
 log "Import"
@@ -153,7 +164,7 @@ fi
 
 log "Export"
 mkdir -p "$OUT"
-APK="$OUT/sada-quest-${APP_VERSION}-${VERSION_CODE}.apk"
+APK="$OUT/tayf-quest-${APP_VERSION}-${VERSION_CODE}.apk"
 # Install the Godot Android build template the same way the editor does, then add
 # the store manifest hook (see tools/ci/store_manifest.gradle).
 rm -rf "$ROOT/android"
@@ -168,7 +179,7 @@ test -s "$APK" || { echo "Export failed: no APK produced"; exit 1; }
 log "Verify"
 BT="$SDK/build-tools/$ANDROID_BUILD_TOOLS"
 {
-  echo "Sada Quest APK build report"
+  echo "Tayf (طيف) Quest APK build report"
   echo "file: $(basename "$APK")"
   echo "version: ${APP_VERSION} (code ${VERSION_CODE})"
   echo "size_bytes: $(stat -c %s "$APK")"
@@ -203,6 +214,8 @@ unzip -l "$APK" | grep -q "lib/arm64-v8a/libgodotopenxrvendors.so"
 "$BT/aapt2" dump xmltree --file AndroidManifest.xml "$APK" | grep -q "org.khronos.openxr.intent.category.IMMERSIVE_HMD"
 "$BT/aapt2" dump badging "$APK" | grep -q "package: name='${PACKAGE}'"
 "$BT/aapt2" dump badging "$APK" | grep -q "targetSdkVersion:'34'"
+"$BT/aapt2" dump badging "$APK" | grep -q "sdkVersion:'32'"                       # minSdk 32 (Meta: at least 29)
+unzip -l "$APK" | grep -q "lib/arm64-v8a/libgodot_meta_toolkit.so"                 # entitlement check available
 sha256sum "$APK" | tee "$APK.sha256"
 echo "APK=$APK" >> "${GITHUB_ENV:-/dev/null}"
 log "Done: $APK"

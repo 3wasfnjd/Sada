@@ -80,7 +80,7 @@ func _run() -> void:
 	var board: Node3D = load("res://game/board.gd").new()
 	root.add_child(board)
 	var worst := 0; var worst_k := 0
-	for k in [1, 3, 6, 9, 12, 16, 20, 25, 30]:
+	for k in [1, 3, 6, 9, 12, 16, 20, 24, 25, 26, 28, 30]:
 		var R = Logic.room_for(k, 77)
 		if R == null: continue
 		board.build(R)

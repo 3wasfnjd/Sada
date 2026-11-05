@@ -1,5 +1,5 @@
 extends Node3D
-## صدى on Meta Quest: the room stands on your table (passthrough MR).
+## طيف (Tayf) on Meta Quest: the room stands on your table (passthrough MR).
 ## Rules are the same as the web version (core/sada_logic.gd, parity-tested):
 ## each loop has L ticks; when a loop ends without the exit it becomes an echo that replays
 ## your moves; plates open doors; reach the exit within the room's echo budget.
@@ -9,17 +9,25 @@ extends Node3D
 ##   right trigger        point at a cell: walk there (on yourself: wait one tick)
 ##   A                    wait one tick          B   undo one step
 ##   X                    hint (limited)         Y   one loop back
+##   left trigger         end this loop now: what you walked becomes a طيف (no more waiting)
+##   left stick click     show / hide the controls card
 ##   left stick           x: turn the table, y: bigger / smaller
 ##   grip tap             bring the table in front of you
 ##   grip hold (one)      carry the table; both grips: pinch to resize and turn
-## Desktop (no headset): arrows, space = wait, Z = undo, H = hint, Backspace = loop back.
+## Desktop (no headset): arrows, space = wait, Z = undo, H = hint, Backspace = loop back,
+## Enter = end loop now, F1 = controls card.
+##
+## Store rules handled here: pauses (and hides controllers, mutes) while the system menu is
+## open or the headset is off (VRC.Quest.Functional.2 / Input.4); entitlement check at launch
+## in store builds (core/store_entitlement.gd).
 
 const Logic = preload("res://core/sada_logic.gd")
 const Board = preload("res://game/board.gd")
+const Entitlement = preload("res://core/store_entitlement.gd")
 const TICK := 0.3
 const TABLE_SIZE := 0.62   # metres: the larger side of the room on the table
 const START_HELP := 3
-const SAVE := "user://sada.cfg"
+const SAVE := "user://tayf.cfg"
 
 var xr: XRInterface
 var xr_on := false
@@ -54,6 +62,10 @@ const ZOOM_MAX := 3.0
 var zoom := 1.0
 var _grip := {"left": {"held": false, "t": 0.0, "moved": false}, "right": {"held": false, "t": 0.0, "moved": false}}
 var _drag := {}            # one hand: {hand, offset}; two hands: {d0, a0, z0, yaw0, mid0, pos0}
+var _models := []          # controller render models (hidden while the system menu has focus)
+var focused := true
+var help_card: Node3D
+var help_seen := false
 
 
 func _ready() -> void:
@@ -104,10 +116,17 @@ func _ready() -> void:
 				var model: Node3D = ClassDB.instantiate("OpenXRFbRenderModel")
 				if h == "right": model.set("render_model_type", 1)
 				grip.add_child(model)
+				_models.append(grip)
 		_passthrough()
 		# the list of blend modes is only reliable once the session runs (same as Mafateeh)
 		xr.connect("session_begun", _passthrough)
 		xr.connect("pose_recentered", func(): placed = false)
+		# focus: the system menu or taking the headset off pauses the game (store requirement)
+		for sig in ["session_visible", "session_loss_pending"]:
+			if xr.has_signal(sig): xr.connect(sig, func(): _set_focus(false))
+		if xr.has_signal("session_focussed"): xr.connect("session_focussed", func(): _set_focus(true))
+		for sig in ["session_stopping", "instance_exiting"]:
+			if xr.has_signal(sig): xr.connect(sig, func(): get_tree().quit())
 		_make_ray()
 	else:
 		cam = Camera3D.new()
@@ -121,7 +140,72 @@ func _ready() -> void:
 	table.position = Vector3(0, 0.95, -0.25)
 	_make_sounds()
 	_load()
+	_make_help_card()
 	load_room(n)
+	var ent := Entitlement.new(); add_child(ent); ent.run()
+
+
+## paused while the headset is off or the system menu is open: no input, no game time,
+## controllers hidden, sound muted; rendering goes on (the scene keeps drawing while paused)
+func _set_focus(on: bool) -> void:
+	if focused == on: return
+	focused = on
+	get_tree().paused = not on
+	for m in _models: (m as Node3D).visible = on
+	if ray: ray.visible = on
+	AudioServer.set_bus_mute(0, not on)
+	_prev.clear(); _drag = {}
+
+
+## a card behind the table that names every control; left stick click hides / shows it
+func _make_help_card() -> void:
+	help_card = Node3D.new()
+	table.add_child(help_card)
+	help_card.position = Vector3(0, 0.2, -0.44)
+	help_card.rotation_degrees = Vector3(-12, 0, 0)
+	var bg := MeshInstance3D.new()
+	var q := QuadMesh.new(); q.size = Vector2(0.6, 0.36)
+	bg.mesh = q
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(0.08, 0.07, 0.1, 0.82)
+	bg.material_override = m
+	bg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	help_card.add_child(bg)
+	var f := FontFile.new()
+	f.load_dynamic_font("res://assets/fonts/baloo-arabic.woff2")
+	var latin := FontFile.new()
+	latin.load_dynamic_font("res://assets/fonts/baloo-latin.woff2")
+	f.fallbacks = [latin]
+	var l := Label3D.new()
+	l.font = f
+	l.font_size = 40
+	l.pixel_size = 0.00075
+	l.outline_size = 0
+	l.modulate = Color(1, 0.94, 0.82)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	l.text_direction = TextServer.DIRECTION_RTL
+	l.width = 740
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.text = "\n".join([
+		"العصا اليمنى: امشِ خطوة",
+		"الزناد الأيمن على مربع: روح له",
+		"A: انتظر      B: تراجع خطوة",
+		"X: تلميح      Y: ارجع دورة",
+		"الزناد الأيسر: خلّص الدورة الحين وخلّ مشيك طيف",
+		"القبضة: حرّك الطاولة      العصا اليسرى: لفّ وكبّر",
+		"اضغط العصا اليسرى لإخفاء هذي اللوحة",
+	])
+	l.position = Vector3(0, 0, 0.002)
+	help_card.add_child(l)
+	help_card.visible = not help_seen
+
+
+func toggle_help() -> void:
+	help_card.visible = not help_card.visible
+	help_seen = not help_card.visible
+	_save()
 
 
 ## AR: the real room is seen through the headset cameras; only the table is drawn
@@ -226,7 +310,7 @@ func do_action(a: String) -> bool:
 	_sound("step" if a != "W" else "wait")
 	_refresh(false)
 	busy = true
-	await get_tree().create_timer(TICK).timeout
+	await get_tree().create_timer(TICK, false).timeout
 	busy = false
 	_after_tick()
 	return true
@@ -238,7 +322,7 @@ func _after_tick() -> void:
 		_win(); return
 	if acts.size() >= R.L:
 		walk.clear()
-		await get_tree().create_timer(0.35).timeout
+		await get_tree().create_timer(0.35, false).timeout
 		if echoes.size() < R.E: end_loop_as_echo()
 		else:
 			fails += 1; retry_loop()
@@ -277,6 +361,16 @@ func back_loop() -> void:
 	acts = []; _reset_states()
 
 
+## end the loop early: the steps walked so far become a طيف (it waits out the rest of the loop)
+## and a new loop starts; with no طيف left in the budget, the loop restarts instead
+func end_loop_now() -> void:
+	if busy or won or rewinding or acts.is_empty(): return
+	walk.clear()
+	if echoes.size() < R.E: end_loop_as_echo()
+	else:
+		fails += 1; retry_loop()
+
+
 func undo() -> void:
 	if busy or won or rewinding or acts.is_empty(): return
 	walk.clear(); acts.pop_back(); states.pop_back()
@@ -311,6 +405,7 @@ func _rewind() -> void:
 		var k := 0.0
 		while k < 1.0:
 			await get_tree().process_frame
+			if get_tree().paused: continue
 			k = minf(1.0, k + get_process_delta_time() / total)
 			var i := int(floor((1.0 - k) * steps))
 			board.snap(states[clampi(i, 0, steps)])
@@ -321,7 +416,7 @@ func _win() -> void:
 	won = true
 	board.cheer(echoes.size()); _sound("win"); _buzz(0.3)
 	if help < 5 and n > Logic.TUTORIAL.size(): help += 1
-	await get_tree().create_timer(1.8).timeout
+	await get_tree().create_timer(1.8, false).timeout
 	load_room(n + 1)
 
 
@@ -379,6 +474,8 @@ func _xr_input(dt: float) -> void:
 	if _pressed("right", "by_button"): undo()
 	if _pressed("left", "ax_button"): hint()
 	if _pressed("left", "by_button"): back_loop()
+	if _pressed("left", "trigger_click"): end_loop_now()
+	if _pressed("left", "primary_click"): toggle_help()
 	# stick: direction relative to how you look at the table
 	var rc: XRController3D = hands.get("right")
 	if rc:
@@ -493,6 +590,8 @@ func _unhandled_input(e: InputEvent) -> void:
 		KEY_Z: undo()
 		KEY_H: hint()
 		KEY_BACKSPACE: back_loop()
+		KEY_ENTER: end_loop_now()
+		KEY_F1: toggle_help()
 
 
 func _buzz(dur: float) -> void:
@@ -544,11 +643,12 @@ func _load() -> void:
 		run_seed = int(c.get_value("run", "seed", 0)); n = int(c.get_value("run", "room", 1))
 		help = int(c.get_value("run", "help", START_HELP))
 		zoom = clampf(float(c.get_value("view", "zoom", 1.0)), ZOOM_MIN, ZOOM_MAX)
+		help_seen = bool(c.get_value("view", "help_seen", false))
 	if run_seed == 0:
 		randomize(); run_seed = randi_range(1, 1 << 30)
 
 
 func _save() -> void:
 	var c := ConfigFile.new()
-	c.set_value("run", "seed", run_seed); c.set_value("run", "room", n); c.set_value("run", "help", help); c.set_value("view", "zoom", zoom)
+	c.set_value("run", "seed", run_seed); c.set_value("run", "room", n); c.set_value("run", "help", help); c.set_value("view", "zoom", zoom); c.set_value("view", "help_seen", help_seen)
 	c.save(SAVE)

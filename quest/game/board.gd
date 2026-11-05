@@ -200,7 +200,8 @@ func build(room: Dictionary) -> void:
 			(wall_cells if R.wall[y * R.W + x] == 1 else floor_cells).append(Vector2i(x, y))
 	var room_seed: int = hash([R.W, R.H, R.wall])
 	if LOWPOLY:
-		room_node.add_child(_lp_mi(Env.floor_mesh(floor_cells + wall_cells, R.W, R.H, room_seed)))
+		# floor slabs only where you can see them: a wall covers its whole cell (saves ~a third of the floor triangles)
+		room_node.add_child(_lp_mi(Env.floor_mesh(floor_cells, R.W, R.H, room_seed)))
 		if wall_cells.size():
 			room_node.add_child(_lp_mi(Env.wall_mesh(wall_cells, R.W, R.H, room_seed + 1)))
 		room_node.add_child(_lp_mi(Env.island_mesh(R, room_seed + 2)))
@@ -291,7 +292,7 @@ func _door_turn(x: int, y: int) -> float:
 func _door_mark(kind: String, c: Color) -> MeshInstance3D:
 	var m := MeshInstance3D.new()
 	if kind == "inverse":
-		var t := TorusMesh.new(); t.inner_radius = 0.12; t.outer_radius = 0.18
+		var t := TorusMesh.new(); t.inner_radius = 0.12; t.outer_radius = 0.18; t.rings = 24; t.ring_segments = 8   # default 64x32 = 4096 triangles
 		m.mesh = t
 		m.rotation.x = PI / 2
 	else:
@@ -303,7 +304,7 @@ func _door_mark(kind: String, c: Color) -> MeshInstance3D:
 
 func _ring(c: Color) -> MeshInstance3D:
 	var m := MeshInstance3D.new()
-	var t := TorusMesh.new(); t.inner_radius = 0.3; t.outer_radius = 0.36
+	var t := TorusMesh.new(); t.inner_radius = 0.3; t.outer_radius = 0.36; t.rings = 40; t.ring_segments = 8   # default 64x32 = 4096 triangles
 	m.mesh = t
 	m.material_override = _glow(c)
 	return m

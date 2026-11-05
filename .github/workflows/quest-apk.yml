@@ -1,16 +1,36 @@
 name: quest-apk
-# Builds, tests and verifies the Quest APK (quest/), then commits it to the `quest-apk` branch
-# (apk + sha256 + reports) so it can be downloaded directly. Sideload test build, test key.
+# Builds, tests and verifies the Quest APK of طيف — Tayf (quest/), then commits it to the `quest-apk`
+# branch (apk + sha256 + reports) so it can be downloaded directly.
+#
+# - Push to dev: sideload build. Signed with the permanent store key when the SADA_KEYSTORE_* secrets
+#   exist (so it installs over store builds), otherwise with the public test key.
+# - Run manually ("Run workflow") with "upload_alpha" ticked: store build (App ID baked in, entitlement
+#   check on) uploaded to the Meta Horizon Store ALPHA channel. Needs secrets META_APP_ID,
+#   META_APP_SECRET and SADA_KEYSTORE_B64/_ALIAS/_PASSWORD. See docs/store/UPLOAD_CHECKLIST_AR.md.
 on:
   push:
     branches: [dev]
     paths: ['quest/**', '.github/workflows/quest-apk.yml']
   workflow_dispatch:
+    inputs:
+      upload_alpha:
+        description: 'Upload to the Meta Horizon Store ALPHA channel (needs META_APP_ID, META_APP_SECRET and the permanent signing key)'
+        type: boolean
+        default: false
+      age_group:
+        description: 'Meta age group for the upload'
+        type: choice
+        options: [TEENS_AND_ADULTS, MIXED_AGES, ADULTS_ONLY]
+        default: TEENS_AND_ADULTS
+      sideload_test:
+        description: 'Sideload test build: public test key, no App ID (ignores store secrets)'
+        type: boolean
+        default: false
 permissions:
   contents: write
 concurrency:
-  group: quest-apk-${{ github.ref }}
-  cancel-in-progress: true
+  group: quest-apk-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -29,26 +49,64 @@ jobs:
         env:
           VERSION_CODE: ${{ github.run_number }}
           OUT_DIR: ${{ github.workspace }}/build
+          SADA_KEYSTORE_B64: ${{ !inputs.sideload_test && secrets.SADA_KEYSTORE_B64 || '' }}
+          SADA_KEYSTORE_ALIAS: ${{ !inputs.sideload_test && secrets.SADA_KEYSTORE_ALIAS || '' }}
+          SADA_KEYSTORE_PASSWORD: ${{ !inputs.sideload_test && secrets.SADA_KEYSTORE_PASSWORD || '' }}
+          # the App ID (entitlement check) only goes into store uploads: a sideload build with it
+          # would quit on a headset whose account does not own the app yet
+          META_APP_ID: ${{ inputs.upload_alpha && !inputs.sideload_test && secrets.META_APP_ID || '' }}
         run: bash quest/tools/ci/build_apk.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: sada-quest-${{ github.run_number }}
+          name: tayf-quest-${{ github.run_number }}
           path: |
             build/*.apk
             build/*.sha256
             build/*.txt
             build/export.log
           if-no-files-found: warn
+      - name: Upload to Meta Horizon Store (ALPHA)
+        if: ${{ success() && inputs.upload_alpha && !inputs.sideload_test }}
+        env:
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          HAS_RELEASE_KEY: ${{ secrets.SADA_KEYSTORE_B64 != '' }}
+          OVR_UTIL_SHA256: ${{ vars.OVR_UTIL_SHA256 }}
+        run: |
+          set -euo pipefail
+          if [ -z "$META_APP_ID" ] || [ -z "$META_APP_SECRET" ]; then
+            echo "::error::Add repository secrets META_APP_ID and META_APP_SECRET (Developer Dashboard > your app > API)."; exit 1
+          fi
+          if [ "$HAS_RELEASE_KEY" != "true" ]; then
+            echo "::error::Refusing to upload a build signed with the public test key. Create the permanent key first (workflow 'Tayf signing key')."; exit 1
+          fi
+          APK="$(ls build/tayf-quest-*.apk | head -1)"
+          # Meta's official OVR Platform Utility (Linux build), from oculus.com.
+          curl -fL --retry 4 -o ovr-platform-util "https://www.oculus.com/download_app/?id=5159709737372459"
+          # Pin: set the repository variable OVR_UTIL_SHA256 to the SHA-256 printed here on the first run;
+          # later uploads then refuse a different binary.
+          GOT="$(sha256sum ovr-platform-util | cut -d' ' -f1)"
+          echo "ovr-platform-util sha256: $GOT"
+          if [ -n "${OVR_UTIL_SHA256:-}" ] && [ "$GOT" != "$OVR_UTIL_SHA256" ]; then
+            echo "::error::ovr-platform-util changed (sha256 $GOT, expected $OVR_UTIL_SHA256). Check Meta's release, then update OVR_UTIL_SHA256."; exit 1
+          fi
+          chmod +x ovr-platform-util
+          ./ovr-platform-util version || true
+          ./ovr-platform-util upload-quest-build --app-id "$META_APP_ID" --app-secret "$META_APP_SECRET" \
+            --apk "$APK" --channel ALPHA --age-group "${{ inputs.age_group }}" \
+            --notes "Build ${{ github.run_number }} from ${GITHUB_SHA::7}"
       - name: Commit APK to the quest-apk branch
+        if: ${{ success() && !inputs.upload_alpha }}
         run: |
           set -e
           SRC="${{ github.sha }}"
           mkdir /tmp/out && cp build/*.txt /tmp/out/
-          cp build/*.apk /tmp/out/Sada-Quest.apk && (cd /tmp/out && sha256sum Sada-Quest.apk > Sada-Quest.apk.sha256)
-          cd /tmp/out
+          cp build/*.apk /tmp/out/Tayf-Quest.apk
+          cp build/*.apk /tmp/out/Sada-Quest.apk   # the old link keeps working
+          cd /tmp/out && sha256sum Tayf-Quest.apk Sada-Quest.apk > SHA256SUMS
           git init -q -b quest-apk
-          printf 'Sada Quest sideload build %s from %s\n' "${{ github.run_number }}" "$SRC" > README.md
+          printf 'Tayf (طيف) Quest sideload build %s from %s\n' "${{ github.run_number }}" "$SRC" > README.md
           git add -A
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Quest APK build ${{ github.run_number }} from ${SRC:0:7}"
           git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:quest-apk

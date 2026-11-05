@@ -429,11 +429,11 @@ static func verify(room: Dictionary, allow_alone := false) -> bool:
 
 # hand-made opening rooms (rows top -> bottom). # wall . floor S start E exit
 # a/b/c hold door, A/B/C timed door; 1/2/3 plate for door a/b/c; x/y/z inverse plate
+# every opening room needs an echo (none can be solved alone); same rooms as src/logic.js
 const TUTORIAL := [
-	{"map": [".E.", "...", ".S."], "alone": true},
 	{"map": [".E.", "#a#", "1.S"], "tasks": [[0]]},
 	{"map": ["E..", "#b#", "...", "#a#", "21S"], "tasks": [[0, 1]]},
-	{"map": [".E.", "#A#", "...", "1.S"], "alone": true},
+	{"map": ["E...", "#b##", "....", "###A", "....", "1.2S"], "tasks": [[0, 1]]},
 	{"map": ["E..", "#b#", "y..", "#a#", "1.S"], "tasks": [[0]]},
 ]
 
