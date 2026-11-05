@@ -114,31 +114,43 @@ func _flowers_and_butterflies() -> void:
 # ---------------- birds ----------------
 
 func _bird_mesh(n: Node3D) -> Dictionary:
+	# a little songbird: round body, a big round head, a coloured chest, two-tone wings, a short tail
+	var looks := [
+		[Color(0.30, 0.52, 0.86), Color(0.98, 0.62, 0.30)],   # blue with an orange chest
+		[Color(0.48, 0.36, 0.28), Color(0.95, 0.52, 0.32)],   # robin
+		[Color(0.98, 0.80, 0.25), Color(0.99, 0.93, 0.70)],   # canary
+		[Color(0.36, 0.58, 0.40), Color(0.94, 0.86, 0.55)],   # green finch
+	]
+	var pick: Array = looks[_rng.randi() % looks.size()]
+	var plume: Color = pick[0]; var chest: Color = pick[1]
 	var body := LP.new(3)
-	var plume: Color = [Color(0.32, 0.55, 0.92), Color(0.95, 0.72, 0.2), Color(0.86, 0.36, 0.3), Color(0.45, 0.36, 0.3)][_rng.randi() % 4]
-	body.blob(Vector3(0, 0.07, 0), Vector3(0.06, 0.055, 0.085), 0.05, plume, 1)
-	body.blob(Vector3(0, 0.055, 0.02), Vector3(0.045, 0.04, 0.05), 0.03, Color(0.93, 0.86, 0.74))      # pale belly
-	body.tri(Vector3(-0.03, 0.08, -0.07), Vector3(0.03, 0.08, -0.07), Vector3(0, 0.1, -0.16), plume.darkened(0.2), Vector3(0, 0, 0))   # tail
-	body.cyl(Vector3(-0.02, 0, 0.0), 0.004, 0.004, 0.03, 3, Color(0.85, 0.55, 0.2))   # legs
-	body.cyl(Vector3(0.02, 0, 0.0), 0.004, 0.004, 0.03, 3, Color(0.85, 0.55, 0.2))
+	body.blob(Vector3(0, 0.065, -0.005), Vector3(0.052, 0.05, 0.066), 0.02, plume, 1)
+	body.blob(Vector3(0, 0.056, 0.026), Vector3(0.04, 0.038, 0.036), 0.02, chest, 1)
+	body.tri(Vector3(-0.022, 0.075, -0.06), Vector3(0.022, 0.075, -0.06), Vector3(0, 0.1, -0.12), plume.darkened(0.25), Vector3(0, 0, 0))
+	body.tri(Vector3(-0.022, 0.075, -0.06), Vector3(0, 0.1, -0.12), Vector3(0.022, 0.075, -0.06), plume.darkened(0.25), Vector3(0, 1, 0))
+	for sd in [-1, 1]: body.cyl(Vector3(sd * 0.016, 0, 0.005), 0.0035, 0.0035, 0.026, 3, Color(0.82, 0.5, 0.25))
 	n.add_child(_mi(body.commit()))
-	var head := Node3D.new(); head.position = Vector3(0, 0.13, 0.06); n.add_child(head)
+	var head := Node3D.new(); head.position = Vector3(0, 0.118, 0.035); n.add_child(head)
 	var h := LP.new(4)
-	h.blob(Vector3.ZERO, Vector3(0.04, 0.04, 0.042), 0.03, plume, 1)
-	h.blob(Vector3(0.028, 0.012, 0.022), Vector3(0.008, 0.008, 0.008), 0.0, Color(0.05, 0.05, 0.05))
-	h.blob(Vector3(-0.028, 0.012, 0.022), Vector3(0.008, 0.008, 0.008), 0.0, Color(0.05, 0.05, 0.05))
-	var hm := _mi(h.commit()); head.add_child(hm)
-	# the beak: a small cone turned forward
-	var beak := LP.new(5); beak.cyl(Vector3.ZERO, 0.012, 0.0, 0.035, 4, Color(0.95, 0.68, 0.2))
-	var bm := _mi(beak.commit()); bm.rotation.x = PI / 2; bm.position = Vector3(0, -0.005, 0.035); head.add_child(bm)
+	h.blob(Vector3.ZERO, Vector3(0.042, 0.04, 0.042), 0.015, plume, 1)
+	h.blob(Vector3(0, -0.012, 0.022), Vector3(0.026, 0.02, 0.02), 0.0, chest)       # cheeks / throat
+	for sd in [-1, 1]:
+		h.blob(Vector3(sd * 0.026, 0.008, 0.024), Vector3(0.012, 0.012, 0.008), 0.0, Color(0.98, 0.97, 0.94))   # eye ring
+		h.blob(Vector3(sd * 0.029, 0.008, 0.027), Vector3(0.008, 0.008, 0.006), 0.0, Color(0.05, 0.05, 0.06))
+	head.add_child(_mi(h.commit()))
+	var beak := LP.new(5); beak.cyl(Vector3.ZERO, 0.009, 0.0, 0.026, 4, Color(0.98, 0.68, 0.22))
+	var bm := _mi(beak.commit()); bm.rotation.x = PI / 2; bm.position = Vector3(0, -0.004, 0.036); head.add_child(bm)
 	var wings := []
 	for sd in [-1, 1]:
-		var piv := Node3D.new(); piv.position = Vector3(sd * 0.05, 0.09, 0.0); n.add_child(piv)
+		var piv := Node3D.new(); piv.position = Vector3(sd * 0.045, 0.085, 0.0); n.add_child(piv)
 		var w := LP.new(6)
-		w.tri(Vector3(0, 0, 0.05), Vector3(sd * 0.13, 0, -0.01), Vector3(0, 0, -0.06), plume.darkened(0.1), Vector3(0, -1, 0))
-		w.tri(Vector3(0, 0, 0.05), Vector3(0, 0, -0.06), Vector3(sd * 0.13, 0, -0.01), plume.darkened(0.1), Vector3(0, 1, 0))
-		var wm := _mi(w.commit()); piv.add_child(wm)
-		piv.rotation.z = sd * 1.2   # folded against the body
+		var tip := Vector3(sd * 0.11, 0, -0.03)
+		w.tri(Vector3(0, 0, 0.045), tip, Vector3(0, 0, -0.05), plume.darkened(0.12), Vector3(0, -1, 0))
+		w.tri(Vector3(0, 0, 0.045), Vector3(0, 0, -0.05), tip, plume.darkened(0.12), Vector3(0, 1, 0))
+		w.tri(Vector3(0, 0, -0.05), tip, Vector3(sd * 0.07, 0, -0.07), plume.darkened(0.35), Vector3(0, -1, 0))   # dark flight feathers
+		w.tri(Vector3(0, 0, -0.05), Vector3(sd * 0.07, 0, -0.07), tip, plume.darkened(0.35), Vector3(0, 1, 0))
+		piv.add_child(_mi(w.commit()))
+		piv.rotation.z = sd * 1.25   # folded against the body
 		wings.append(piv)
 	return {"head": head, "wings": wings}
 
@@ -151,7 +163,7 @@ func _make_birds() -> void:
 		var parts := _bird_mesh(n)
 		var b := {"node": n, "head": parts.head, "wings": parts.wings, "state": "sit", "t": 0.0, "wait": 0.0, "peck": _rng.randf_range(1, 4),
 			"a": Vector3.ZERO, "b": spots[i], "ctrl": Vector3.ZERO, "dur": 1.0, "face": _rng.randf_range(0, TAU)}
-		n.position = spots[i]; n.rotation.y = b.face; n.scale = Vector3.ONE * 2.0
+		n.position = spots[i]; n.rotation.y = b.face; n.scale = Vector3.ONE * 1.3
 		_birds.append(b)
 
 
@@ -197,7 +209,7 @@ func _update_birds(dt: float) -> void:
 						b.state = "gone"; b.wait = _rng.randf_range(5.0, 11.0); n.visible = false
 					else:
 						b.state = "sit"; b.face = n.rotation.y
-						for i in 2: (b.wings[i] as Node3D).rotation.z = (-1 if i == 0 else 1) * 1.2
+						for i in 2: (b.wings[i] as Node3D).rotation.z = (-1 if i == 0 else 1) * 1.25
 			"gone":
 				b.wait -= dt
 				if b.wait <= 0.0:   # come back to a perch far from the hero
@@ -272,23 +284,36 @@ func _update_rabbit(dt: float) -> void:
 # ---------------- wind streaks ----------------
 
 func _streak(start := false) -> Dictionary:
+	# a long white line that runs along the island (front to back) with one small curl in it
 	var mi := MeshInstance3D.new()
-	var len := _rng.randf_range(1.8, 3.2)
+	var len := _rng.randf_range(2.4, 3.8)
+	var loop_r := _rng.randf_range(0.12, 0.2)
+	var loop_at := _rng.randf_range(0.35, 0.65)
+	var amp := _rng.randf_range(0.02, 0.05)
+	var pts := []
+	var n := 56
+	for i in n + 1:
+		var t := float(i) / n
+		var p := Vector3((t - 0.5) * len, sin(t * TAU * 0.7) * amp, 0)
+		# the curl: a full loop between loop_at-0.08 and loop_at+0.08, leaning toward you so it reads from above
+		var u := (t - (loop_at - 0.08)) / 0.16
+		if u > 0.0 and u < 1.0:
+			var th := u * TAU
+			p += Vector3(-sin(th) * loop_r * 1.1 + u * 0.0, (1.0 - cos(th)) * loop_r * 0.8, (1.0 - cos(th)) * loop_r * 0.45)
+		pts.append(p)
 	var m := ImmediateMesh.new()
-	var seg := 14
-	var amp := _rng.randf_range(0.03, 0.08)
-	var waves := _rng.randf_range(0.4, 0.9)
-	var w := 0.014
+	var w := 0.024
 	m.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
-	for i in seg + 1:
-		var t := float(i) / seg
-		var x := (t - 0.5) * len
-		var y := sin(t * TAU * waves) * amp
+	for i in pts.size():
+		var p: Vector3 = pts[i]
+		var tan: Vector3 = (pts[mini(i + 1, pts.size() - 1)] - pts[maxi(i - 1, 0)]).normalized()
+		var side := tan.cross(Vector3(0.0, 0.75, 0.66).normalized())
+		if side.length() < 0.2: side = Vector3(0, 0, 1)
+		side = side.normalized() * w
+		var t := float(i) / (pts.size() - 1)
 		var a := sin(t * PI)   # fades at both ends
-		m.surface_set_color(Color(1, 1, 1, a))
-		m.surface_add_vertex(Vector3(x, y + w, 0))
-		m.surface_set_color(Color(1, 1, 1, a))
-		m.surface_add_vertex(Vector3(x, y - w, 0))
+		m.surface_set_color(Color(1, 1, 1, a)); m.surface_add_vertex(p + side)
+		m.surface_set_color(Color(1, 1, 1, a)); m.surface_add_vertex(p - side)
 	m.surface_end()
 	mi.mesh = m
 	var mat := StandardMaterial3D.new()
@@ -301,15 +326,18 @@ func _streak(start := false) -> Dictionary:
 	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
-	var s := {"mi": mi, "mat": mat, "life": _rng.randf_range(2.5, 4.5), "age": 0.0, "v": Vector3(_rng.randf_range(0.9, 1.5), 0, _rng.randf_range(-0.15, 0.15))}
+	# along the island: front (+z, near you) to back (-z), a little sideways drift
+	var s := {"mi": mi, "mat": mat, "life": _rng.randf_range(3.0, 5.0), "age": 0.0, "v": Vector3(_rng.randf_range(-0.08, 0.08), 0, -_rng.randf_range(0.9, 1.3))}
 	_respawn(s, start)
 	return s
 
 
 func _respawn(s: Dictionary, start := false) -> void:
 	var mi: MeshInstance3D = s.mi
-	mi.position = Vector3(-_hw - 2.5 + (_rng.randf_range(0, 5) if start else 0.0), _rng.randf_range(0.5, 2.2), _rng.randf_range(-_hh - 1.5, _hh + 0.8))
-	mi.rotation.y = atan2(-(s.v as Vector3).z, (s.v as Vector3).x)
+	var z0 := _hh + 2.2
+	mi.position = Vector3(_rng.randf_range(-_hw - 0.4, _hw + 0.4), _rng.randf_range(0.5, 1.8), z0 - (_rng.randf_range(0, _hh * 2 + 2) if start else 0.0))
+	var v: Vector3 = s.v
+	mi.rotation.y = atan2(-v.z, v.x)   # the mesh runs along its own x: turn it to face the wind
 	s.age = _rng.randf_range(0, s.life * 0.6) if start else 0.0
 
 
@@ -319,7 +347,7 @@ func _update_streaks(dt: float) -> void:
 		var mi: MeshInstance3D = s.mi
 		mi.position += (s.v as Vector3) * dt
 		var k: float = s.age / s.life
-		(s.mat as StandardMaterial3D).albedo_color.a = clampf(sin(clampf(k, 0, 1) * PI), 0, 1) * 0.42
+		(s.mat as StandardMaterial3D).albedo_color.a = clampf(sin(clampf(k, 0, 1) * PI), 0, 1) * 0.7
 		if k >= 1.0: _respawn(s)
 
 

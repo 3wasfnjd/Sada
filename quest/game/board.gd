@@ -423,17 +423,20 @@ func _exit_fx() -> void:
 	var base := _floor_ring(EXIT_COL, 0.55)
 	base.position = at + Vector3(0, 0.05, 0)
 	room_node.add_child(base)
+	# a few tiny golden sparks drifting up and fading (was a thick ring of glowing balls that read as smoke)
 	var sp := CPUParticles3D.new()
-	sp.amount = 24; sp.lifetime = 1.8
+	sp.amount = 9; sp.lifetime = 2.4
+	sp.local_coords = true   # sizes and speeds in board cells: in world space the sparks were metre-scale on a 60 cm table (the 'smoke')
 	sp.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
-	sp.emission_ring_axis = Vector3.UP; sp.emission_ring_radius = 0.45; sp.emission_ring_inner_radius = 0.3; sp.emission_ring_height = 0.05
-	sp.direction = Vector3.UP; sp.spread = 8; sp.gravity = Vector3.ZERO
-	sp.initial_velocity_min = 0.5; sp.initial_velocity_max = 0.9
-	sp.scale_amount_min = 0.5; sp.scale_amount_max = 1.0
+	sp.emission_ring_axis = Vector3.UP; sp.emission_ring_radius = 0.34; sp.emission_ring_inner_radius = 0.2; sp.emission_ring_height = 0.02
+	sp.direction = Vector3.UP; sp.spread = 14; sp.gravity = Vector3.ZERO
+	sp.initial_velocity_min = 0.35; sp.initial_velocity_max = 0.6
+	sp.tangential_accel_min = 0.25; sp.tangential_accel_max = 0.4   # a gentle swirl round the ring
+	sp.scale_amount_min = 0.6; sp.scale_amount_max = 1.0
 	var dot := SphereMesh.new(); dot.radius = 0.035; dot.height = 0.07; dot.radial_segments = 6; dot.rings = 3
 	sp.mesh = dot
-	var pm := _glow(EXIT_COL); dot.material = pm
-	var curve := Curve.new(); curve.add_point(Vector2(0, 0)); curve.add_point(Vector2(0.2, 1)); curve.add_point(Vector2(1, 0))
+	var pm := _glow(Color(1.0, 0.93, 0.62)); dot.material = pm
+	var curve := Curve.new(); curve.add_point(Vector2(0, 0)); curve.add_point(Vector2(0.15, 1)); curve.add_point(Vector2(0.7, 0.8)); curve.add_point(Vector2(1, 0))
 	sp.scale_amount_curve = curve
 	sp.position = at + Vector3(0, 0.1, 0)
 	room_node.add_child(sp)
@@ -730,6 +733,53 @@ func clear_hint() -> void:
 	if hint_node:
 		hint_node.queue_free()
 		hint_node = null
+
+
+## the room number on a little wooden sign stuck in the grass at the front corner of the island
+var _sign_font: FontFile
+func show_level(n: int, ar: bool) -> void:
+	var old := room_node.get_node_or_null("LevelSign")
+	if old: old.free()
+	if not LOWPOLY: return
+	var top: PackedVector2Array = Env.last_outline
+	var hw: float = R.W / 2.0; var hh: float = R.H / 2.0
+	var at := Vector3(-hw - 0.5, -0.05, hh - 0.1)
+	if not Env._crown_fits(top, at, 0.3): at = Vector3(hw + 0.5, -0.05, hh - 0.1)
+	if not Env._crown_fits(top, at, 0.3): at = Vector3(-hw - 0.45, -0.05, 0.0)
+	var sign := Node3D.new(); sign.name = "LevelSign"
+	sign.position = at
+	sign.rotation.y = 0.35 if at.x < 0 else -0.35   # turned a little toward the middle
+	room_node.add_child(sign)
+	var lp := Env.LP.new(n * 31 + 7)
+	var wood := Env.WOOD
+	for sx in [-0.3, 0.3]:
+		lp.block(Vector3(sx, 0.36, -0.01), Vector3(0.07, 0.78, 0.07), 0.015, 0.006, wood.darkened(0.15))
+	lp.block(Vector3(0, 0.62, 0.02), Vector3(0.86, 0.5, 0.06), 0.03, 0.008, Color(0.66, 0.46, 0.28), Color(0.72, 0.52, 0.32))
+	for sx in [-0.32, 0.32]:
+		for sy in [0.45, 0.79]:
+			lp.blob(Vector3(sx, sy, 0.055), Vector3(0.014, 0.014, 0.008), 0.0, Env.IRON)
+	var mi := _lp_mi(lp.commit()); sign.add_child(mi)
+	if _sign_font == null:
+		_sign_font = FontFile.new(); _sign_font.load_dynamic_font("res://assets/fonts/baloo-arabic.woff2")
+		var latin := FontFile.new(); latin.load_dynamic_font("res://assets/fonts/baloo-latin.woff2")
+		_sign_font.fallbacks = [latin]
+	var ink := Color(0.26, 0.15, 0.08)
+	var word := Label3D.new()
+	word.font = _sign_font; word.font_size = 30; word.pixel_size = 0.0042; word.outline_size = 0
+	word.modulate = ink; word.text = "المرحلة" if ar else "ROOM"
+	word.position = Vector3(0, 0.78, 0.054)
+	sign.add_child(word)
+	var num := Label3D.new()
+	num.font = _sign_font; num.font_size = 78; num.pixel_size = 0.0042; num.outline_size = 0
+	num.modulate = ink
+	var digits := str(n)
+	if ar:
+		var east := ""
+		for ch in digits: east += "٠١٢٣٤٥٦٧٨٩"[int(ch)]
+		digits = east
+	num.text = digits
+	num.position = Vector3(0, 0.56, 0.054)
+	sign.add_child(num)
 
 
 func set_life(on: bool) -> void:

@@ -248,7 +248,8 @@ func _on_menu(what: String, value: Variant) -> void:
 		"restart":
 			randomize(); run_seed = randi_range(1, 1 << 30); help = START_HELP
 			menu.close(); load_room(1)
-		"lang": lang = value
+		"lang":
+			lang = value; board.show_level(n, lang == "ar")
 	if what != "volume": _apply_settings()
 	else: AudioServer.set_bus_volume_db(0, linear_to_db(maxf(volume, 0.001)))
 	_save()
@@ -319,6 +320,7 @@ func load_room(k: int) -> void:
 		run_seed += 1; R = Logic.room_for(n, run_seed)
 	echoes = []; acts = []; walk = []; won = false; busy = false; fails = 0
 	board.build(R)
+	board.show_level(n, lang == "ar")
 	_fit()
 	_reset_states()
 	_save()
