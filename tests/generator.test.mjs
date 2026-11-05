@@ -40,6 +40,17 @@ for (let run = 0; run < RUNS; run++) for (let n = T0 + 1; n <= T0 + ROOMS; n++) 
 const a = E.roomFor(12, 99), b = E.roomFor(12, 99);
 if (JSON.stringify([...a.wall, a.doors, a.plates, a.L]) !== JSON.stringify([...b.wall, b.doors, b.plates, b.L])) fail('generator is not deterministic');
 
+// no repeats: a run must not hand out the same room twice (rooms 1-80, a few runs)
+for (const seed of [123456, 98765, 7, 2026]) {
+  const seen = new Map();
+  for (let n = 1; n <= 80; n++) {
+    const R = E.roomFor(n, seed); if (!R) continue;
+    const key = R.W + 'x' + R.H + [...R.wall].join('') + JSON.stringify([R.start, R.exit, R.doors, R.plates]);
+    if (seen.has(key)) fail(`run seed ${seed}: room ${n} is the same as room ${seen.get(key)}`);
+    seen.set(key, n);
+  }
+}
+
 const pct = v => (100 * v / total).toFixed(0) + '%';
 console.log(`${total} generated rooms checked, slowest ${worst.toFixed(1)} ms, average loop ${(sumL / total).toFixed(1)} ticks`);
 console.log(`timed doors ${pct(feat.timed)}, inverse plates ${pct(feat.inverse)}, fewer echoes than gates (echo must move in sync) ${pct(fewer)}`);

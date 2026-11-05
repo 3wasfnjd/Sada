@@ -409,7 +409,9 @@ svg .f { fill: currentColor; stroke-width: 1.2; }
 
   function generate(level, seed) {
     for (let attempt = 0; attempt < 400; attempt++) {
-      const r = rng(seed + attempt * 7919);
+      // attempt stride must not be the room stride (7919, see roomFor): with the same stride, room n+1's
+      // attempt a was room n's attempt a+1, so later rooms (same difficulty) came out identical
+      const r = rng(seed + attempt * 104729);
       const d = difficulty(level);
       const k = d.k, W = d.W;
       const hs = []; for (let i = 0; i <= k; i++) hs.push(i === 0 ? 2 : r() < d.tall ? 2 : 1);

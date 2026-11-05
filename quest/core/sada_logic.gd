@@ -308,7 +308,8 @@ static func minimal_tasks(room: Dictionary):
 
 static func generate(level: int, seed: int):
 	for attempt in 400:
-		var r := Rng.new((seed + attempt * 7919) & MASK)
+		# attempt stride differs from the room stride (7919): otherwise later rooms repeated (see src/logic.js)
+		var r := Rng.new((seed + attempt * 104729) & MASK)
 		var d := difficulty(level)
 		var k: int = d.k; var W: int = d.W
 		var hs := []
