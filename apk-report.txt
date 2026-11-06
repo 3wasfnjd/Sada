@@ -1,0 +1,149 @@
+Tayf (طيف) Quest APK build report
+file: tayf-quest-1.0.0-21.apk
+version: 1.0.0 (code 21)
+size_bytes: 97656636
+sha256: e6e574f51a036f0757904ac4521eed7c4a9da948f31ac596d25207add1f6f52f
+signing: TEST-ONLY key (tools/ci/test-signing) — sideload testing, not for store release
+godot: 4.6.3-stable; openxr_vendors: 5.1.0-stable; build-tools: 36.1.0; ndk: 29.0.14206865
+
+--- apksigner verify
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): false
+Verified using v3.1 scheme (APK Signature Scheme v3.1): false
+Verified using v4 scheme (APK Signature Scheme v4): false
+Verified for SourceStamp: false
+Number of signers: 1
+Signer #1 certificate DN: CN=Sada Test, O=Aboden Games
+Signer #1 certificate SHA-256 digest: ad59c35be247ee169e054e6127cf5a5a6368d0e303fe931ed48389e87d619998
+
+--- badging
+package: name='com.abodengames.tayf' versionCode='21' versionName='1.0.0' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'
+minSdkVersion:'32'
+targetSdkVersion:'34'
+uses-permission: name='com.oculus.permission.RENDER_MODEL'
+uses-permission: name='org.khronos.openxr.permission.OPENXR'
+uses-permission: name='org.khronos.openxr.permission.OPENXR_SYSTEM'
+application-label:'طيف — Tayf'
+application-label-af:'طيف — Tayf'
+application-label-am:'طيف — Tayf'
+application-label-ar:'طيف — Tayf'
+application-label-as:'طيف — Tayf'
+application-label-az:'طيف — Tayf'
+application-label-be:'طيف — Tayf'
+application-label-bg:'طيف — Tayf'
+application-label-bn:'طيف — Tayf'
+application-label-bs:'طيف — Tayf'
+application-label-ca:'طيف — Tayf'
+application-label-cs:'طيف — Tayf'
+application-label-da:'طيف — Tayf'
+application-label-de:'طيف — Tayf'
+application-label-el:'طيف — Tayf'
+application-label-en:'طيف — Tayf'
+application-label-en-AU:'طيف — Tayf'
+application-label-en-CA:'طيف — Tayf'
+application-label-en-GB:'طيف — Tayf'
+application-label-en-IN:'طيف — Tayf'
+application-label-en-XC:'طيف — Tayf'
+application-label-es:'طيف — Tayf'
+application-label-es-ES:'طيف — Tayf'
+application-label-es-US:'طيف — Tayf'
+application-label-et:'طيف — Tayf'
+application-label-eu:'طيف — Tayf'
+application-label-fa:'طيف — Tayf'
+application-label-fi:'طيف — Tayf'
+application-label-fr:'طيف — Tayf'
+application-label-fr-CA:'طيف — Tayf'
+application-label-gl:'طيف — Tayf'
+application-label-gu:'طيف — Tayf'
+application-label-hi:'طيف — Tayf'
+application-label-hr:'طيف — Tayf'
+application-label-hu:'طيف — Tayf'
+application-label-hy:'طيف — Tayf'
+application-label-in:'طيف — Tayf'
+application-label-is:'طيف — Tayf'
+application-label-it:'طيف — Tayf'
+application-label-iw:'طيف — Tayf'
+application-label-ja:'طيف — Tayf'
+application-label-ka:'طيف — Tayf'
+application-label-kk:'طيف — Tayf'
+application-label-km:'طيف — Tayf'
+application-label-kn:'طيف — Tayf'
+application-label-ko:'طيف — Tayf'
+application-label-ky:'طيف — Tayf'
+application-label-lo:'طيف — Tayf'
+application-label-lt:'طيف — Tayf'
+application-label-lv:'طيف — Tayf'
+application-label-mk:'طيف — Tayf'
+application-label-ml:'طيف — Tayf'
+application-label-mn:'طيف — Tayf'
+application-label-mr:'طيف — Tayf'
+application-label-ms:'طيف — Tayf'
+application-label-my:'طيف — Tayf'
+application-label-nb:'طيف — Tayf'
+application-label-ne:'طيف — Tayf'
+application-label-nl:'طيف — Tayf'
+application-label-or:'طيف — Tayf'
+application-label-pa:'طيف — Tayf'
+application-label-pl:'طيف — Tayf'
+application-label-pt:'طيف — Tayf'
+application-label-pt-BR:'طيف — Tayf'
+application-label-pt-PT:'طيف — Tayf'
+application-label-ro:'طيف — Tayf'
+application-label-ru:'طيف — Tayf'
+application-label-si:'طيف — Tayf'
+application-label-sk:'طيف — Tayf'
+application-label-sl:'طيف — Tayf'
+application-label-sq:'طيف — Tayf'
+application-label-sr:'طيف — Tayf'
+application-label-sr-Latn:'طيف — Tayf'
+application-label-sv:'طيف — Tayf'
+application-label-sw:'طيف — Tayf'
+application-label-ta:'طيف — Tayf'
+application-label-te:'طيف — Tayf'
+application-label-th:'طيف — Tayf'
+application-label-tl:'طيف — Tayf'
+application-label-tr:'طيف — Tayf'
+application-label-uk:'طيف — Tayf'
+application-label-ur:'طيف — Tayf'
+application-label-uz:'طيف — Tayf'
+application-label-vi:'طيف — Tayf'
+application-label-zh:'طيف — Tayf'
+application-label-zh-CN:'طيف — Tayf'
+application-label-zh-HK:'طيف — Tayf'
+application-label-zh-TW:'طيف — Tayf'
+application-label-zu:'طيف — Tayf'
+  uses-feature-not-required: name='android.hardware.vr.headtracking' version='1'
+  uses-feature-not-required: name='com.oculus.feature.PASSTHROUGH'
+  uses-feature-not-required: name='com.oculus.feature.RENDER_MODEL'
+  uses-feature: name='android.hardware.faketouch'
+  uses-feature: name='android.hardware.screen.landscape'
+native-code: 'arm64-v8a'
+
+--- manifest (XR launch)
+A: http://schemas.android.com/apk/res/android:authorities(0x01010018)="org.khronos.openxr.runtime_broker;org.khronos.openxr.system_runtime_broker" (Raw: "org.khronos.openxr.runtime_broker;org.khronos.openxr.system_runtime_broker")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.intent.category.DEFAULT" (Raw: "android.intent.category.DEFAULT")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.intent.category.LAUNCHER" (Raw: "android.intent.category.LAUNCHER")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.feature.PASSTHROUGH" (Raw: "com.oculus.feature.PASSTHROUGH")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.feature.RENDER_MODEL" (Raw: "com.oculus.feature.RENDER_MODEL")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.intent.category.VR" (Raw: "com.oculus.intent.category.VR")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.ossplash" (Raw: "com.oculus.ossplash")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.ossplash.background" (Raw: "com.oculus.ossplash.background")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.ossplash.colorspace" (Raw: "com.oculus.ossplash.colorspace")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.ossplash.type" (Raw: "com.oculus.ossplash.type")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.permission.RENDER_MODEL" (Raw: "com.oculus.permission.RENDER_MODEL")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.supportedDevices" (Raw: "com.oculus.supportedDevices")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.oculus.vr.focusaware" (Raw: "com.oculus.vr.focusaware")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="org.khronos.openxr.OpenXRApiLayerService" (Raw: "org.khronos.openxr.OpenXRApiLayerService")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="org.khronos.openxr.OpenXRRuntimeService" (Raw: "org.khronos.openxr.OpenXRRuntimeService")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="org.khronos.openxr.intent.category.IMMERSIVE_HMD" (Raw: "org.khronos.openxr.intent.category.IMMERSIVE_HMD")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="org.khronos.openxr.permission.OPENXR" (Raw: "org.khronos.openxr.permission.OPENXR")
+A: http://schemas.android.com/apk/res/android:name(0x01010003)="org.khronos.openxr.permission.OPENXR_SYSTEM" (Raw: "org.khronos.openxr.permission.OPENXR_SYSTEM")
+
+--- native libraries
+lib/arm64-v8a/libc++_shared.so
+lib/arm64-v8a/libgodot_android.so
+lib/arm64-v8a/libgodot_meta_toolkit.so
+lib/arm64-v8a/libgodotopenxrvendors.so
+lib/arm64-v8a/libopenxr_loader.so
+lib/arm64-v8a/libovrplatformloader.so
