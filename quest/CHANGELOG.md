@@ -1,6 +1,6 @@
 # سجل تغييرات نسخة Quest — صدى
 
-نسخة Meta Quest في مجلد `quest/`، تُبنى من فرع `dev`. الرابط: https://github.com/3wasfnjd/Sada/raw/quest-apk/Sada-Quest.apk
+نسخة Meta Quest في مجلد `quest/`، تُبنى من فرع `dev`. الرابط: https://github.com/3wasfnjd/Tayf-Puzzle/raw/quest-apk/Sada-Quest.apk
 (الأقسام القديمة منسوخة من `CHANGELOG.md` الرئيسي كما هي.)
 
 ## Quest 1.0.0 (تكملة ٤) — الثعلب v2 (فرع dev)
