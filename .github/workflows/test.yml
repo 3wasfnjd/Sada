@@ -8,9 +8,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: index.html matches src
+      - name: index.html (طيف web) matches mobile/ + src/logic.js
         run: node tools/build.mjs --check
-      - name: syntax check of the game module
-        run: cp src/game.js /tmp/game.mjs && node --check /tmp/game.mjs
+      - name: syntax check of the web game
+        run: node --check mobile/game.js
       - name: every generated room is solvable
         run: node tests/generator.test.mjs
